@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="view_ildo_payment_list_wizard_form" model="ir.ui.view">
+        <field name="name">ildo.payment.list.wizard.form</field>
+        <field name="model">ildo.payment.list.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Liste des paiements">
+                <group col="2">
+                    <group string="Période">
+                        <field name="date_filter" widget="radio"/>
+                        <field name="day_date"
+                               invisible="date_filter != 'day'"
+                               required="date_filter == 'day'"/>
+                        <field name="date_from"
+                               invisible="date_filter != 'period'"
+                               required="date_filter == 'period'"/>
+                        <field name="date_to"
+                               invisible="date_filter != 'period'"
+                               required="date_filter == 'period'"/>
+                    </group>
+                    <group string="Journaux">
+                        <field name="company_id" groups="base.group_multi_company"/>
+                        <field name="journal_ids"
+                               widget="many2many_tags"
+                               options="{'no_create': True, 'no_create_edit': True}"
+                               placeholder="Tous les journaux"/>
+                    </group>
+                </group>
+                <footer>
+                    <button name="action_print_report" string="Imprimer le PDF"
+                            type="object" class="btn-primary"/>
+                    <button string="Annuler" special="cancel" class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_ildo_payment_list_wizard" model="ir.actions.act_window">
+        <field name="name">Liste des paiements</field>
+        <field name="res_model">ildo.payment.list.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <record id="view_account_payment_list_ildo_report_button" model="ir.ui.view">
+        <field name="name">account.payment.list.ildo.report.button</field>
+        <field name="model">account.payment</field>
+        <field name="inherit_id" ref="account.view_account_payment_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//list/header" position="inside">
+                <button name="%(action_ildo_payment_list_wizard)d"
+                        type="action"
+                        string="Liste des paiements"
+                        class="btn-secondary"
+                        display="always"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

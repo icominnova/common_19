@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="report_invoice_document_hide_fields" inherit_id="account.report_invoice_document">
+        <xpath expr="//div[@id='informations']" position="before">
+            <style>
+                div[name="due_date"],
+                div[name="reference"] {
+                    display: none !important;
+                }
+            </style>
+        </xpath>
+        <xpath expr="//t[@t-call='account.document_tax_totals'] | //t[@t-call='account.document_tax_totals_company_currency_template']" position="replace"/>
+    </template>
+</odoo>

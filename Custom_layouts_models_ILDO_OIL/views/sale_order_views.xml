@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="view_order_form_inherit_ildo_destination" model="ir.ui.view">
+        <field name="name">sale.order.form.inherit.ildo.destination</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="arch" type="xml">
+            <field name="client_order_ref" position="after">
+                <field name="ildo_destination"/>
+            </field>
+            <field name="partner_shipping_id" position="after">
+                <field name="ildo_account_partner_id"
+                       options="{'no_create': True, 'no_create_edit': True}"
+                       placeholder="Choisir un client ayant une référence"/>
+            </field>
+            <field name="payment_term_id" position="after">
+                <field name="ildo_show_be_bl_numbers" invisible="1"/>
+                <field name="ildo_be_number" invisible="not ildo_show_be_bl_numbers"/>
+                <field name="ildo_bl_number" invisible="not ildo_show_be_bl_numbers"/>
+            </field>
+        </field>
+    </record>
+</odoo>

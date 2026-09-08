@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <template id="purchase_hide_fields_inherit" inherit_id="purchase.report_purchaseorder_document">
+        <xpath expr="//div[@id='informations']" position="replace">
+                <!-- Bloc informations masqué -->
+        </xpath>
+    </template>
+</odoo>

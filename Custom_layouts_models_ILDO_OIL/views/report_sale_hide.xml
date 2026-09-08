@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+  <template id="report_sale_order_hide_fields" inherit_id="sale.report_saleorder_document">
+    <xpath expr="//div[@id='informations']/div[div[@t-field='doc.user_id']]" position="replace"/>
+
+    <xpath expr="//div[@id='informations']" position="before">
+      <style>
+        div[name="informations_reference"],
+        div[name="delivery_date"],
+        div[name="informations_date"],
+        div[name="so_total_summary"] {
+          display: none !important;
+        }
+      </style>
+    </xpath>
+ </template>
+</odoo>

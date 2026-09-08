@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <data>
+        <record id="menu_stock_warehouse_mgmt" model="ir.ui.menu">
+            <field name="name">Bon d'Enlèvement</field>
+        </record>
+    </data>
+</odoo>
+

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <template id="list_print_metadata">
+        <div style="margin-top: 16px; padding-top: 8px; border-top: 1px solid #222; font-size: 12px; display: flex; justify-content: space-between;">
+            <span>
+                <strong>Imprimé par :</strong>
+                <span t-esc="user.name"/>
+            </span>
+            <span style="text-align: right;">
+                <strong>Date et heure d'impression :</strong>
+                <span t-esc="context_timestamp(datetime.datetime.now()).strftime('%d/%m/%Y %H:%M:%S')"/>
+            </span>
+        </div>
+    </template>
+</odoo>

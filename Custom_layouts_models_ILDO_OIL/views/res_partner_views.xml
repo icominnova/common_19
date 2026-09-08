@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="view_partner_form_inherit_tax_identifiers" model="ir.ui.view">
+        <field name="name">res.partner.form.tax.identifiers.ildo.oil</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <field name="vat" position="after">
+                <field name="code_client"/>
+                <field name="ildo_client_reference"/>
+                <field name="ifu"/>
+                <field name="rccm"/>
+                <field name="division_f"/>
+                <field name="regime_i"/>
+            </field>
+        </field>
+    </record>
+
+    <record id="view_partner_tree_inherit_code_client_ildo_oil" model="ir.ui.view">
+        <field name="name">res.partner.tree.code.client.ildo.oil</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_tree"/>
+        <field name="arch" type="xml">
+            <field name="complete_name" position="after">
+                <field name="code_client" optional="show"/>
+                <field name="ildo_customer_debit"
+                       optional="show"
+                       sum="Total débit"
+                       groups="account.group_account_invoice,account.group_account_readonly"/>
+                <field name="ildo_customer_credit"
+                       optional="show"
+                       sum="Total crédit"
+                       groups="account.group_account_invoice,account.group_account_readonly"/>
+                <field name="ildo_customer_balance"
+                       optional="show"
+                       sum="Total solde"
+                       groups="account.group_account_invoice,account.group_account_readonly"/>
+            </field>
+        </field>
+    </record>
+</odoo>

@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<odoo>
+    <!-- Action report pour générer le PDF groupé des opérations de stock -->
+    <record id="action_stock_group_pdf" model="ir.actions.report">
+        <field name="name">Imprimer la liste des opérations de stock</field>
+        <field name="model">stock.picking</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">Custom_layouts_models_ILDO_OIL.stock_list_report</field>
+        <field name="binding_model_id" ref="stock.model_stock_picking"/>
+        <field name="binding_type">action</field>
+        <field name="multi">True</field>
+    </record>
+</odoo>

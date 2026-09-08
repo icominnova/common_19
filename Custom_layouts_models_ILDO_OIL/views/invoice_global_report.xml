@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <template id="report_invoice_global">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="o">
+                <t t-set="lang" t-value="o.partner_id.lang"/>
+                <t t-set="company" t-value="o.company_id.sudo()"/>
+                <t t-call="Custom_layouts_models_ILDO_OIL.external_layouts" t-lang="lang">
+                    <style>
+                        .custom-invoice-table {
+                            width: 100%;
+                            border-collapse: collapse;
+                            font-size: 13px;
+                            font-family: Arial, Helvetica, sans-serif;
+                            border: 2.5px solid #222;
+                            margin-top: 0 !important;
+                            table-layout: fixed;
+                        }
+                        .custom-invoice-table th,
+                        .custom-invoice-table td {
+                            border: 2.5px solid #222 !important;
+                            padding: 2px 5px;
+                            text-align: center;
+                            vertical-align: top;
+                            line-height: 1.05;
+                        }
+                        .custom-invoice-table th {
+                            font-weight: bold;
+                            font-size: 11px;
+                            white-space: nowrap;
+                        }
+                        .custom-invoice-table thead {
+                            display: table-header-group;
+                        }
+                        .custom-invoice-table tbody tr {
+                            page-break-inside: avoid !important;
+                            break-inside: avoid-page !important;
+                        }
+                        .custom-invoice-table .desc-cell,
+                        .custom-invoice-table th.desc-cell {
+                            text-align: left !important;
+                            word-break: break-word;
+                            overflow-wrap: break-word;
+                            white-space: normal;
+                            max-width: 320px;
+                        }
+                        .custom-invoice-table td {
+                            background: transparent !important;
+                        }
+                        .custom-invoice-table tbody td:first-child {
+                            white-space: nowrap;
+                            word-break: keep-all;
+                            overflow-wrap: normal;
+                            font-size: 12px;
+                        }
+                        /* Corps du tableau : uniquement les bordures verticales, sans lignes horizontales entre produits. */
+                        .custom-invoice-table tbody td {
+                            border-top: 0 !important;
+                            border-bottom: 0 !important;
+                            border-left: 2.5px solid #222 !important;
+                            border-right: 2.5px solid #222 !important;
+                        }
+                        .custom-invoice-table tbody tr:last-child td {
+                            border-bottom: 2.5px solid #222 !important;
+                        }
+                        .custom-invoice-table .product-fill-row td {
+                            height: 330px;
+                        }
+                    </style>
+                    <table class="custom-invoice-table">
+                        <colgroup>
+                            <col style="width:12%;"/>
+                            <col style="width:43%;"/>
+                            <col style="width:10%;"/>
+                            <col style="width:8%;"/>
+                            <col style="width:14%;"/>
+                            <col style="width:13%;"/>
+                        </colgroup>
+                        <thead>
+                            <tr>
+                                <th>Référence</th>
+                                <th class="desc-cell">Désignation</th>
+                                <th>Qté (Litres)</th>
+                                <th>PVMA</th>
+                                <th>Prix Unitaire</th>
+                                <th>Montant HT</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <t t-foreach="o._get_move_lines_to_report()" t-as="line">
+                                <t t-if="line.display_type == 'product'">
+                                    <tr>
+                                        <td>
+                                            <span t-field="line.product_id.default_code"/>
+                                        </td>
+                                        <td class="desc-cell">
+                                            <span t-if="line.product_id" t-field="line.product_id.name"/>
+                                            <span t-else="" t-field="line.name"/>
+                                        </td>
+                                        <td>
+                                            <span t-field="line.quantity"/>
+                                        </td>
+                                        <td>
+                                            <span t-field="line.product_id.barcode"/>
+                                        </td>
+                                        <td>
+                                            <span t-field="line.price_unit"/>
+                                        </td>
+                                        <td>
+                                            <span t-field="line.price_subtotal"/>
+                                        </td>
+                                    </tr>
+                                </t>
+                            </t>
+                            <tr class="product-fill-row">
+                                <td>&#160;</td>
+                                <td class="desc-cell">&#160;</td>
+                                <td>&#160;</td>
+                                <td>&#160;</td>
+                                <td>&#160;</td>
+                                <td>&#160;</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </t>
+            </t>
+        </t>
+    </template>
+
+    <function model="ir.actions.report" name="write">
+        <value model="ir.actions.report" search="[('id', '=', ref('account.account_invoices'))]"/>
+        <value eval="{
+            'report_name': 'Custom_layouts_models_ILDO_OIL.report_invoice_global',
+            'report_file': 'Custom_layouts_models_ILDO_OIL.report_invoice_global',
+            'paperformat_id': ref('Custom_layouts_models_ILDO_OIL.paperformat_no_header'),
+        }"/>
+    </function>
+</odoo>

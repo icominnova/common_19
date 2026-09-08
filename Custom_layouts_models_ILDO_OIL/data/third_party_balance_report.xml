@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo auto_sequence="1">
+    <!--
+        Rapport interactif des factures : débit, crédit et reste à payer.
+    -->
+    <record id="ildo_third_party_balance_report" model="account.report">
+        <field name="name">Balance des tiers</field>
+        <field name="root_report_id" eval="False"/>
+        <field name="filter_journals" eval="True"/>
+        <field name="filter_show_draft" eval="True"/>
+        <field name="filter_account_type">both</field>
+        <field name="filter_partner" eval="True"/>
+        <field name="filter_multi_company">selector</field>
+        <field name="filter_unfold_all" eval="True"/>
+        <field name="filter_hide_0_lines">optional</field>
+        <field name="default_opening_date_filter">this_month</field>
+        <field name="search_bar" eval="True"/>
+        <field name="custom_handler_model_id" ref="model_ildo_third_party_balance_report_handler"/>
+        <field name="column_ids">
+            <record id="ildo_third_party_balance_debit" model="account.report.column">
+                <field name="name">Débit</field>
+                <field name="expression_label">debit</field>
+                <field name="sequence">10</field>
+            </record>
+            <record id="ildo_third_party_balance_credit" model="account.report.column">
+                <field name="name">Crédit</field>
+                <field name="expression_label">credit</field>
+                <field name="sequence">20</field>
+            </record>
+            <record id="ildo_third_party_balance_balance" model="account.report.column">
+                <field name="name">Solde</field>
+                <field name="expression_label">balance</field>
+                <field name="sequence">30</field>
+            </record>
+        </field>
+        <field name="line_ids">
+            <record id="ildo_third_party_balance_all" model="account.report.line">
+                <field name="name">Balance des tiers</field>
+                <field name="code">BT</field>
+                <!-- Une seule ligne par tiers, sans lien vers les écritures. -->
+                <field name="groupby">partner_id</field>
+                <field name="foldable" eval="False"/>
+                <field name="expression_ids">
+                    <record id="ildo_third_party_balance_expression_balance" model="account.report.expression">
+                        <field name="label">balance</field>
+                        <field name="engine">custom</field>
+                        <field name="auditable" eval="False"/>
+                        <field name="formula">_report_custom_engine_third_party_balance</field>
+                        <field name="subformula">balance</field>
+                    </record>
+                    <record id="ildo_third_party_balance_expression_debit" model="account.report.expression">
+                        <field name="label">debit</field>
+                        <field name="engine">custom</field>
+                        <field name="auditable" eval="False"/>
+                        <field name="formula">_report_custom_engine_third_party_balance</field>
+                        <field name="subformula">debit</field>
+                    </record>
+                    <record id="ildo_third_party_balance_expression_credit" model="account.report.expression">
+                        <field name="label">credit</field>
+                        <field name="engine">custom</field>
+                        <field name="auditable" eval="False"/>
+                        <field name="formula">_report_custom_engine_third_party_balance</field>
+                        <field name="subformula">credit</field>
+                    </record>
+                </field>
+            </record>
+        </field>
+    </record>
+
+    <!-- Cette action ouvre l'aperçu web natif avec les boutons PDF et XLSX. -->
+    <record id="action_ildo_third_party_balance" model="ir.actions.client">
+        <field name="name">Balance des tiers</field>
+        <field name="tag">account_report</field>
+        <field name="path">third-party-balance</field>
+        <field name="context" eval="{'report_id': ref('ildo_third_party_balance_report')}"/>
+    </record>
+
+    <menuitem id="menu_ildo_third_party_balance"
+              name="Balance des tiers"
+              parent="account.account_reports_partners_reports_menu"
+              action="action_ildo_third_party_balance"
+              sequence="30"
+              groups="account.group_account_invoice,account.group_account_readonly"/>
+</odoo>

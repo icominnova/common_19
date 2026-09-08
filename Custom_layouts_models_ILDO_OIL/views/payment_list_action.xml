@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<odoo>
+    <record id="action_print_payment_list" model="ir.actions.report">
+        <field name="name">Imprimer Liste des paiements</field>
+        <field name="model">account.payment</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">Custom_layouts_models_ILDO_OIL.payment_list_report</field>
+        <field name="binding_model_id" eval="False"/>
+        <field name="binding_type">report</field>
+        <field name="print_report_name">'Liste des paiements'</field>
+    </record>
+</odoo>

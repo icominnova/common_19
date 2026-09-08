@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <template t-name="Custom_layouts_models_ILDO_OIL.custom_stock_report_inherit" inherit_id="stock.report_reception_body">
+        <xpath expr="//table" position="after">
+            <div class="my-4">
+                <h4>Complément d'information</h4>
+                <p>Texte ou champs dynamiques ici…</p>
+            </div>
+        </xpath>
+    </template>
+</odoo>

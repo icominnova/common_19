@@ -1,0 +1,319 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <data>
+        <record id="stock.action_report_picking" model="ir.actions.report">
+            <field name="name">Bon d'enlèvement</field>
+            <field name="report_name">stock.report_picking</field>
+            <field name="report_file">stock.report_picking_operations</field>
+            <field name="print_report_name">'Bon d enlèvement - %s' % (object.name)</field>
+            <field name="paperformat_id" ref="Custom_layouts_models_ILDO_OIL.paperformat_no_header"/>
+        </record>
+
+        <record id="stock.action_report_delivery" model="ir.actions.report">
+            <field name="name">Bon de livraison</field>
+            <field name="report_name">stock.report_deliveryslip</field>
+            <field name="report_file">stock.report_deliveryslip</field>
+            <field name="print_report_name">'Bon de livraison - %s' % (object.name)</field>
+            <field name="paperformat_id" ref="Custom_layouts_models_ILDO_OIL.paperformat_no_header"/>
+        </record>
+
+        <template id="report_picking_hide_content" inherit_id="stock.report_picking">
+            <!-- Masquer tout le contenu de la page du rapport -->
+            <xpath expr="//div[contains(@class, 'article')]" position="replace">
+                <t t-foreach="docs" t-as="o">
+                    <t t-set="company" t-value="o.company_id"/>
+                    <t t-set="o" t-value="o"/>
+                    <!-- Initialisation de la hauteur de la forme d'entête (utilisée pour le style) -->
+                    <t t-set="header_shape_height" t-value="'0'"/>
+
+                    <!-- Corps principal du rapport -->
+                    <div t-attf-class="article o_report_layout_wave o_table_striped o_company_#{company.id}_layout">
+                        <!-- Bloc d'entête du document -->
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <!-- Affichage du logo de la société si présent -->
+                            <t t-if="company.logo">
+                                <img t-if="company.logo" class="o_company_logo_big mb-2" t-att-src="image_data_uri(company.logo)" alt="Logo"/>
+                            </t>
+                            <!-- Affichage du slogan ou header de la société si présent -->
+                            <t t-if="company.report_header">
+                                <div t-field="company.report_header" class="o_company_tagline mw-50 fw-bold">Company tagline</div>
+                            </t>
+                        </div>
+                        <!-- Section d'information client et détails de la commande -->
+                        <div class="row" style="padding:0px; background:transparent; max-width:700px; width:80%; margin:0px auto -20px 0px; font-size:12px;">
+                            <ul class="list-unstyled" name="company_address_list">
+                                <!-- Bloc 1 : Affichage de l'adresse de la société si les détails sont vides -->
+                                <li t-if="company.is_company_details_empty">
+                                    <span t-field="company.partner_id" t-options='{"widget": "contact", "fields": ["address", "name"], "no_marker": true}'>
+                                        <div class="bg-light border-1 rounded h-100 d-flex flex-column align-items-center justify-content-center p-4 w-100 opacity-75 text-muted text-center">
+                                            <strong>Company address block</strong>
+                                            <div>Contains the company address.</div>
+                                        </div>
+                                    </span>
+                                </li>
+                                <!-- Bloc 2 : Affichage des détails de la société si disponibles -->
+                                <li t-else="">
+                                    <span t-field="company.company_details">
+                                        <div class="bg-light border-1 rounded h-100 d-flex flex-column align-items-center justify-content-center p-4 w-100 opacity-75 text-muted text-center">
+                                            <strong>Company details block</strong>
+                                            <div>Contains the company details.</div>
+                                        </div>
+                                    </span>
+                                </li>
+                                <!-- Bloc 3 : Affichage du numéro de TVA si non forcé -->
+                                <li t-if="not forced_vat">
+                                    <t t-if="company.vat">
+                                        <t t-esc="company.country_id.vat_label or 'Tax ID'">Tax ID</t>:
+                                        <span t-esc="company.vat">US12345671</span>
+                                    </t>
+                                </li>
+                                <!-- Bloc 4 : Affichage du numéro de TVA forcé -->
+                                <li t-else="">
+                                    <t t-esc="company.country_id.vat_label or 'Tax ID'">Tax ID</t>:
+                                    <span t-esc="forced_vat">US12345671</span>
+                                </li>
+                            </ul>
+                        </div>
+                        <!-- Section d'information client et détails de la commande -->
+                        <div class="d-flex flex-row align-items-start" style="width:100%;">
+                            <!-- Bloc pour les bons d'enlèvement/livraison -->
+                            <t t-if="o and o._name == 'stock.picking'">
+                                <div style="border:2.5px solid #222; border-radius:8px; padding:8px 16px; margin:10px 0 10px 0; max-width:340px; min-width:180px; width:40%; height:130px; position:relative;">
+                                    <!-- Référence en haut à gauche -->
+                                    <div style="position:absolute; top:10px; left:10px; font-weight:bold;">
+                                        <span>Référence</span>
+                                        <br/>
+                                        <t t-set="year" t-value="str(o.scheduled_date.year)[-2:] if o.scheduled_date else ''"/>
+                                        <t t-set="seq" t-value="o.name.split('/')[-1] if o.name and '/' in o.name else o.name"/>
+                                        <t t-set="seq" t-value="seq.zfill(3)"/>
+                                        <span t-out="(o.sale_id.ildo_account_partner_id.commercial_partner_id.ildo_client_reference if o.sale_id.ildo_account_partner_id else False) or o.partner_id.commercial_partner_id.ildo_client_reference or o.ildo_be_number or ('BE' + year + seq)"/>
+                                    </div>
+                                    <!-- Date en haut à droite -->
+                                    <div style="position:absolute; top:10px; right:10px; font-weight:bold; text-align:center; width:90px;">
+                                        <span style="display:block; font-size:15px;">Date</span>
+                                        <span t-field="o.scheduled_date" t-options="{'widget': 'date'}"/>
+                                    </div>
+                                    <!-- Destination en bas à gauche -->
+                                    <div style="position:absolute; bottom:10px; left:10px; font-weight:bold;">
+                                        <span>Destination</span>
+                                        <br/>
+                                        <span t-out="o.sale_id.ildo_destination or o.partner_id.city"/>
+                                    </div>
+                                </div>
+                            </t>
+
+                            <t t-set="client_partner" t-value="o.sale_id.ildo_account_partner_id or o.partner_id"/>
+                            <!-- Informations du client ou du compte client sélectionné. -->
+                            <div style="border:2.5px solid #222; border-radius:8px; padding:8px 16px; margin-left:180px; max-width:340px; min-width:180px; width:40%; display:block;">
+                                <div style="display: flex; flex-direction: column; gap: 6px; font-weight:bold; font-size:15px;">
+                                    <div style="display: flex; flex-direction: row; justify-content:space-between;">
+                                        <span>Code client :</span>
+                                        <span>
+                                            <t t-if="client_partner">
+                                                <t t-set="client_initials"
+                                                   t-value="''.join([(part[:1] or '').upper() for part in (client_partner.name or '').split()])"/>
+                                                <span t-out="client_partner.code_client or ('C%s%s' % (client_initials, client_partner.id))"/>
+                                            </t>
+                                        </span>
+                                    </div>
+                                    <div style="display: flex; flex-direction: row; justify-content:space-between;">
+                                        <span>Client :</span>
+                                        <span>
+                                            <span t-if="client_partner" t-field="client_partner.name"/>
+                                        </span>
+                                    </div>
+                                    <div style="display: flex; flex-direction: row; justify-content:space-between;">
+                                        <span>Téléphone :</span>
+                                        <span>
+                                            <span t-if="client_partner" t-field="client_partner.phone"/>
+                                        </span>
+                                    </div>
+                                    <div style="display: flex; flex-direction: row; justify-content:space-between;">
+                                        <span>Adresse :</span>
+                                        <span>
+                                            <span t-if="client_partner" t-field="client_partner.street"/>
+                                        </span>
+                                    </div>
+                                    <div style="display: flex; flex-direction: row; justify-content:space-between;">
+                                        <span>Ville :</span>
+                                        <span>
+                                            <span t-if="client_partner" t-field="client_partner.city"/>
+                                        </span>
+                                    </div>
+                                    <div style="display: flex; flex-direction: row; justify-content:space-between;">
+                                        <span>Rue :</span>
+                                        <span>
+                                            <span t-if="client_partner" t-field="client_partner.street2"/>
+                                        </span>
+                                    </div>
+                                    <div style="display: flex; flex-direction: row; justify-content:space-between;">
+                                        <span>RCCM :</span>
+                                        <span t-if="client_partner" t-out="client_partner.rccm"/>
+                                    </div>
+                                    <div style="display: flex; flex-direction: row; justify-content:space-between;">
+                                        <span>N° IFU :</span>
+                                        <span t-if="client_partner" t-out="client_partner.ifu"/>
+                                    </div>
+                                    <div style="display: flex; flex-direction: row; justify-content:space-between;">
+                                        <span>Division F :</span>
+                                        <span t-if="client_partner" t-out="client_partner.division_f"/>
+                                    </div>
+                                    <div style="display: flex; flex-direction: row; justify-content:space-between;">
+                                        <span>Régime I :</span>
+                                        <span t-if="client_partner" t-out="client_partner.regime_i"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- contenue principale du bon d'enlevement-->
+                        <div>
+                            <t t-set="year" t-value="str(o.scheduled_date.year)[-2:] if o.scheduled_date else ''"/>
+                            <t t-set="seq" t-value="o.name.split('/')[-1] if o.name and '/' in o.name else o.name"/>
+                            <h2 style="font-size: 24px; color: #222; margin-bottom: 12px;">
+                                    BON D'ENLEVEMENT N° <t t-out="o.ildo_be_number or ('BE' + year + seq)"/>
+                            </h2>
+                            <style>
+                                    .custom-picking-table {
+                                        width: 100%;
+                                        border-collapse: collapse;
+                                        font-size: 13px;
+                                        font-family: Arial, Helvetica, sans-serif;
+                                        border: 2.5px solid #222;
+                                        margin-top: 0 !important;
+                                    }
+                                    .custom-picking-table th, .custom-picking-table td {
+                                        border: 2.5px solid #222 !important;
+                                        padding: 2px 5px;
+                                        text-align: center;
+                                        vertical-align: top;
+                                        line-height: 1.05;
+                                        background: transparent !important;
+                                    }
+                                    .custom-picking-table th {
+                                        font-weight: bold;
+                                        font-size: 13px;
+                                    }
+                                    .custom-picking-table thead {
+                                        display: table-header-group;
+                                    }
+                                    .custom-picking-table tbody tr {
+                                        page-break-inside: avoid !important;
+                                        break-inside: avoid-page !important;
+                                        border-top: 0 !important;
+                                        border-bottom: 0 !important;
+                                        box-shadow: none !important;
+                                    }
+                                    .custom-picking-table .desc-cell, .custom-picking-table th.desc-cell {
+                                        text-align: left !important;
+                                        word-break: break-word;
+                                        overflow-wrap: break-word;
+                                        white-space: normal;
+                                        max-width: 320px;
+                                    }
+                                    .custom-picking-table td {
+                                        background: transparent !important;
+                                    }
+                                    .custom-picking-table tbody td:first-child {
+                                        white-space: nowrap;
+                                        word-break: keep-all;
+                                        overflow-wrap: normal;
+                                        font-size: 12px;
+                                    }
+                                    /* Corps du tableau : uniquement les bordures verticales, sans lignes horizontales entre produits. */
+                                    .custom-picking-table tbody td {
+                                        border-top: 0 !important;
+                                        border-bottom: 0 !important;
+                                        border-left: 2.5px solid #222 !important;
+                                        border-right: 2.5px solid #222 !important;
+                                        box-shadow: none !important;
+                                        background-image: none !important;
+                                    }
+                                    .custom-picking-table tbody tr:not(:last-child) td {
+                                        border-bottom-color: transparent !important;
+                                    }
+                                    .custom-picking-table tbody tr:last-child td {
+                                        border-bottom: 2.5px solid #222 !important;
+                                    }
+                                    .custom-picking-table tbody tr + tr td {
+                                        border-top-color: transparent !important;
+                                    }
+                                    .custom-picking-table .product-fill-row td {
+                                        height: 245px;
+                                    }
+                            </style>
+                            <table class="custom-picking-table" style="border:2.5px solid #222; width: 100%; table-layout: fixed;">
+                                <thead>
+                                    <tr>
+                                        <th rowspan="2">Référence</th>
+                                        <th rowspan="2" class="desc-cell">Désignation</th>
+                                        <th colspan="2">Quantité (Litres)</th>
+                                    </tr>
+                                    <tr>
+                                        <th>En chiffre</th>
+                                        <th>En lettre</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <t t-foreach="o.move_ids.filtered(lambda x: x.product_uom_qty)" t-as="move">
+                                        <tr>
+                                            <td>
+                                                <span t-field="move.product_id.default_code"/>
+                                            </td>
+                                            <td class="desc-cell">
+                                                <span t-field="move.product_id.name"/>
+                                            </td>
+                                            <td>
+                                                <span t-field="move.product_uom_qty"/>
+                                            </td>
+                                            <td class="col-en-lettre">
+                                                <span t-esc="move.qty_to_words()"/>
+                                            </td>
+                                        </tr>
+                                    </t>
+                                    <t t-if="not o.move_ids.filtered(lambda x: x.product_uom_qty)">
+                                        <tr>
+                                            <td colspan="4">Aucune ligne de produit à afficher.</td>
+                                        </tr>
+                                    </t>
+                                    <tr class="product-fill-row">
+                                        <td>&#160;</td>
+                                        <td class="desc-cell">&#160;</td>
+                                        <td>&#160;</td>
+                                        <td>&#160;</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <!-- Section Observations ou réserves à la réception -->
+                        <div style="margin-top:14px;">
+                            <strong>Observations ou réserves à la réception</strong>
+                            <div style="border-top:2px dashed #222; border-bottom:2px dashed #222; height:28px; margin-top:5px; margin-bottom:5px;"/>
+                            <div style="width:100%; display:flex; flex-direction:row; justify-content:space-between; margin-top:18px;">
+                                <div style="font-weight:bold; text-align:left;">VISA CLIENT</div>
+                                <div style="font-weight:bold; text-align:right; margin-right:100px;">VISA ILDO OIL</div>
+                            </div>
+                        </div>
+
+                        <div style="margin-top:30px; font-size:13px;">
+                            <span style="font-weight:bold;">NB :</span>
+                            Aucune contestation ou réclamation ne sera admise après que le bordereau de livraison ait été signé par le client.
+                        </div>
+                    </div>
+
+                    <!-- Pied de page configuré dans le logiciel. -->
+                    <div t-attf-class="footer o_company_#{company.id}_layout {{report_type != 'pdf' and 'mt-auto'}}" style="font-size:10px;">
+                        <div class="o_footer_content pt-1" style="width:100%;">
+                            <div>
+                                <div class="text-start" t-field="company.report_footer"/>
+                                <t t-call="Custom_layouts_models_ILDO_OIL.ildo_footer_image"/>
+                            </div>
+                            <div class="text-end text-muted">
+                                <div t-if="report_type == 'pdf' and display_name_in_footer" t-out="o.name">(document name)</div>
+                            </div>
+                        </div>
+                    </div>
+                </t>
+            </xpath>
+        </template>
+    </data>
+</odoo>

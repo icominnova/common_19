@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<odoo>
+    <!-- Action report pour générer le PDF groupé des commandes -->
+    <record id="action_saleorder_group_pdf" model="ir.actions.report">
+        <field name="name">Imprimer la liste des commandes</field>
+        <field name="model">sale.order</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">Custom_layouts_models_ILDO_OIL.sale_list_report</field>
+        <field name="binding_model_id" ref="sale.model_sale_order"/>
+        <field name="binding_type">action</field>
+        <field name="multi">True</field>
+    </record>
+</odoo>

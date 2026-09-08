@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <data>
+        <template id="report_invoice_document_inherit_hide_payments" inherit_id="account.report_invoice_document">
+            <xpath expr="//div[@id='payment_term']" position="before">
+                <style>
+                    p[name="payment_communication"] {
+                        display: none !important;
+                    }
+                </style>
+            </xpath>
+        </template>
+    </data>
+</odoo>

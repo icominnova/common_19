@@ -1,0 +1,3 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_ildo_payment_list_wizard,ildo.payment.list.wizard,model_ildo_payment_list_wizard,account.group_account_invoice,1,1,1,1
+access_ildo_payment_list_wizard_readonly,ildo.payment.list.wizard.readonly,model_ildo_payment_list_wizard,account.group_account_readonly,1,1,1,1

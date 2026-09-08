@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<odoo>
+    <!-- Action serveur pour générer le PDF groupé des factures -->
+    <record id="action_invoice_group_pdf" model="ir.actions.report">
+        <field name="name">Imprimer la liste des factures</field>
+        <field name="model">account.move</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">Custom_layouts_models_ILDO_OIL.invoice_list_report</field>
+        <field name="binding_model_id" ref="account.model_account_move"/>
+        <field name="binding_type">action</field>
+        <field name="multi">True</field>
+    </record>
+</odoo>

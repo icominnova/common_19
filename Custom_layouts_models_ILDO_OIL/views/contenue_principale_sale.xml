@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <data>
+        <template id="contenue_principal_sale" inherit_id="sale.report_saleorder_document">
+            <xpath expr="//table[contains(@class, 'o_main_table')] | //table[contains(@class, 'custom-saleorder-table')] | //table[contains(@class, 'custom-sale-table')]" position="replace">
+                <style>
+                    .custom-sale-table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        font-size: 13px;
+                        font-family: Arial, Helvetica, sans-serif;
+                        border: 2.5px solid #222;
+                        margin-top: 0 !important;
+                    }
+                    .custom-sale-table th, .custom-sale-table td {
+                        border: 2.5px solid #222 !important;
+                        padding: 2px 5px;
+                        text-align: center;
+                        vertical-align: top;
+                        line-height: 1.05;
+                    }
+                    .custom-sale-table th {
+                        font-weight: bold;
+                        font-size: 11px;
+                        white-space: nowrap;
+                    }
+                    .custom-sale-table thead {
+                        display: table-header-group;
+                    }
+                    .custom-sale-table tbody tr {
+                        page-break-inside: avoid !important;
+                        break-inside: avoid-page !important;
+                    }
+                    .custom-sale-table .desc-cell, .custom-sale-table th.desc-cell {
+                        text-align: left !important;
+                        word-break: break-word;
+                        overflow-wrap: break-word;
+                        white-space: normal;
+                        max-width: 320px;
+                    }
+                    .custom-sale-table td {
+                        background: transparent !important;
+                    }
+                    .custom-sale-table tbody td:first-child {
+                        white-space: nowrap;
+                        word-break: keep-all;
+                        overflow-wrap: normal;
+                        font-size: 12px;
+                    }
+                    /* Corps du tableau : uniquement les bordures verticales, sans lignes horizontales entre produits. */
+                    .custom-sale-table tbody td {
+                        border-top: 0 !important;
+                        border-bottom: 0 !important;
+                        border-left: 2.5px solid #222 !important;
+                        border-right: 2.5px solid #222 !important;
+                    }
+                    .custom-sale-table tbody tr:last-child td {
+                        border-bottom: 2.5px solid #222 !important;
+                    }
+                    .custom-sale-table .product-fill-row td {
+                        height: 330px;
+                    }
+                </style>
+                <table class="custom-sale-table" style="border:2.5px solid #222; table-layout:fixed;">
+                    <colgroup>
+                        <col style="width:12%;"/>
+                        <col style="width:43%;"/>
+                        <col style="width:10%;"/>
+                        <col style="width:8%;"/>
+                        <col style="width:14%;"/>
+                        <col style="width:13%;"/>
+                    </colgroup>
+                    <thead>
+                        <tr>
+                            <th>Référence</th>
+                            <th class="desc-cell">Désignation</th>
+                            <th>Qté (Litres)</th>
+                            <th>PVMA</th>
+                            <th>Prix Unitaire</th>
+                            <th>Montant HT</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <t t-foreach="doc.order_line" t-as="line">
+                            <tr>
+                                <td>
+                                    <span t-field="line.product_id.default_code"/>
+                                </td>
+                                <td class="desc-cell">
+                                    <span t-if="line.product_id" t-field="line.product_id.name"/>
+                                    <span t-else="" t-field="line.name"/>
+                                </td>
+                                <td>
+                                    <span t-field="line.product_uom_qty"/>
+                                </td>
+                                <td>
+                                    <span t-field="line.product_id.barcode"/>
+                                </td>
+                                <td>
+                                    <span t-field="line.price_unit"/>
+                                </td>
+                                <td>
+                                    <span t-field="line.price_subtotal"/>
+                                </td>
+                            </tr>
+                        </t>
+                        <tr class="product-fill-row">
+                            <td>&#160;</td>
+                            <td class="desc-cell">&#160;</td>
+                            <td>&#160;</td>
+                            <td>&#160;</td>
+                            <td>&#160;</td>
+                            <td>&#160;</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </xpath>
+        </template>
+    </data>
+</odoo>
