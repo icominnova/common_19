@@ -28,6 +28,7 @@
                        readonly="state != 'draft'"
                        placeholder="Laisser vide pour la numérotation automatique"/>
             </xpath>
+
         </field>
     </record>
 </odoo>

@@ -1,4 +1,4 @@
-<?xml version="1.0"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <odoo>
     <!-- Template QWeb pour la liste groupée des factures -->
     <template id="invoice_list_report">
@@ -71,5 +71,4 @@
     </template>
 
     <!-- Déclaration du rapport -->
-    <report id="invoice_list_report" model="account.move" string="Liste des factures" report_type="qweb-pdf" name="Custom_layouts_models_ILDO_OIL.invoice_list_report" file="Custom_layouts_models_ILDO_OIL.invoice_list_report" />
-</odoo>
+    <record id="action_invoice_list_report" model="ir.actions.report"><field name="name">Liste des factures</field><field name="model">account.move</field><field name="report_type">qweb-pdf</field><field name="report_name">Custom_layouts_models_ILDO_OIL.invoice_list_report</field><field name="report_file">Custom_layouts_models_ILDO_OIL.invoice_list_report</field><field name="binding_model_id" ref="account.model_account_move"/></record></odoo>

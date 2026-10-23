@@ -1,12 +1,17 @@
 {
     "name": "Custom_layouts_models_ILDO_OIL",
-    "version": "1.1.0",
+    "version": "1.1.0.1.0",
     "category": "Tools",
     "summary": "Agencements personnalisés pour les documents PDF",
     "description": "Ajoute de nouveaux agencements pour les factures, devis, bons, etc.",
     "author": "Alain GANSONRE",
     "depends": ["base", "sale", "sale_stock", "web", "account", "account_reports", "uom", "purchase", "stock"],
     "external_dependencies": {"python": ["num2words"]},
+    "assets": {
+        "web.assets_backend": [
+            "Custom_layouts_models_ILDO_OIL/static/src/js/general_ledger_search.js",
+        ],
+    },
     "data": [
         'security/ir.model.access.csv',
         'data/paperformat_no_header.xml',
@@ -45,6 +50,7 @@
         'views/report_invoice_hide_payments.xml',
         'views/report_picking_custom.xml',
         'views/stock_menu_inherit.xml',
+        'views/account_payment_piece_views.xml',
         'data/report_layouts.xml',
     ],
     "installable": True,

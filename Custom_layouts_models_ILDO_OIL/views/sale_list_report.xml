@@ -1,4 +1,4 @@
-<?xml version="1.0"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <odoo>
     <!-- Template QWeb pour la liste groupée des commandes -->
     <template id="sale_list_report">
@@ -68,5 +68,4 @@
     </template>
 
     <!-- Déclaration du rapport -->
-    <report id="sale_list_report" model="sale.order" string="Liste des commandes" report_type="qweb-pdf" name="Custom_layouts_models_ILDO_OIL.sale_list_report" file="Custom_layouts_models_ILDO_OIL.sale_list_report" />
-</odoo>
+    <record id="action_sale_list_report" model="ir.actions.report"><field name="name">Liste des commandes</field><field name="model">sale.order</field><field name="report_type">qweb-pdf</field><field name="report_name">Custom_layouts_models_ILDO_OIL.sale_list_report</field><field name="report_file">Custom_layouts_models_ILDO_OIL.sale_list_report</field><field name="binding_model_id" ref="sale.model_sale_order"/></record></odoo>

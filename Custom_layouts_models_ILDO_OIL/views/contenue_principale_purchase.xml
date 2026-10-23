@@ -3,7 +3,7 @@
     <data>
         <template id="contenue_principal_purchase" inherit_id="purchase.report_purchaseorder_document">
                 
-            <xpath expr="//table[.//t[@t-foreach='o.order_line.filtered(lambda l: l.display_type or l.product_qty != 0)']]" position="replace">
+            <xpath expr="//table[hasclass('o_main_table')]" position="replace">
                
                 <t t-if="o and o._name == 'purchase.order'">
                     <t t-set="year" t-value="str(o.date_order.year)[-2:] if o.date_order else ''"/>

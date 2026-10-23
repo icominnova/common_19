@@ -1,4 +1,4 @@
-<?xml version="1.0"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <odoo>
     <!-- Template QWeb pour la liste groupée des réceptions/expéditions -->
     <template id="stock_list_report">
@@ -50,5 +50,4 @@
     </template>
 
     <!-- Déclaration du rapport -->
-    <report id="stock_list_report" model="stock.picking" string="Liste des opérations de stock" report_type="qweb-pdf" name="Custom_layouts_models_ILDO_OIL.stock_list_report" file="Custom_layouts_models_ILDO_OIL.stock_list_report" />
-</odoo>
+    <record id="action_stock_list_report" model="ir.actions.report"><field name="name">Liste des opérations de stock</field><field name="model">stock.picking</field><field name="report_type">qweb-pdf</field><field name="report_name">Custom_layouts_models_ILDO_OIL.stock_list_report</field><field name="report_file">Custom_layouts_models_ILDO_OIL.stock_list_report</field><field name="binding_model_id" ref="stock.model_stock_picking"/></record></odoo>

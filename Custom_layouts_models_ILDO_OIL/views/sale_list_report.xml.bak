@@ -1,0 +1,72 @@
+<?xml version="1.0"?>
+<odoo>
+    <!-- Template QWeb pour la liste groupée des commandes -->
+    <template id="sale_list_report">
+        <t t-call="web.html_container">
+            <t t-call="web.external_layout">
+                <t t-set="is_saleorder_list" t-value="True"/>
+                <div class="page">
+                    <h2>
+                        <strong>Liste des commandes sélectionnées</strong>
+                    </h2>
+                    <p>
+                        <em>Nombre de commandes : <t t-esc="len(docs)"/>
+                        </em>
+                    </p>
+                    <!-- Calcul du total directement dans le tfoot avec sum() -->
+                    <table class="table table-bordered" style="width:100%;font-size:14px;">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Numéro</th>
+                                <th>Client</th>
+                                <th>Vendeur</th>
+                                <th>Montant</th>
+                                <th>Statut</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr t-foreach="docs" t-as="so">
+                                <td>
+                                    <span t-field="so.date_order" t-options="{'widget': 'date'}"/>
+                                </td>
+                                <td>
+                                    <span t-field="so.name"/>
+                                </td>
+                                <td>
+                                    <span t-field="so.partner_id.name"/>
+                                </td>
+                                <td>
+                                    <span t-field="so.user_id.name"/>
+                                </td>
+                                <td>
+                                    <span t-field="so.amount_total" t-options="{'widget': 'monetary', 'display_currency': so.currency_id}"/>
+                                </td>
+                                <td>
+                                    <span t-field="so.state"/>
+                                </td>
+                            </tr>
+                        </tbody>
+                        <tfoot>
+                            <t t-if="docs">
+                                <tr>
+                                    <td colspan="4" style="text-align:right;">
+                                        <strong>Montant total :</strong>
+                                    </td>
+                                    <td colspan="2">
+                                        <span t-esc="sum([so.amount_total or 0 for so in docs])"/>
+                                        <span t-field="docs[0].currency_id"/>
+                                    </td>
+                                </tr>
+                            </t>
+                        </tfoot>
+                    </table>
+                    <t t-call="Custom_layouts_models_ILDO_OIL.list_print_metadata"/>
+                </div>
+            </t>
+        </t>
+    </template>
+
+    <!-- Déclaration du rapport -->
+    <report id="sale_list_report" model="sale.order" string="Liste des commandes" report_type="qweb-pdf" name="Custom_layouts_models_ILDO_OIL.sale_list_report" file="Custom_layouts_models_ILDO_OIL.sale_list_report" />
+</odoo>
