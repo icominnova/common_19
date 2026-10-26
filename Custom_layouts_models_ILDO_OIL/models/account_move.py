@@ -61,15 +61,46 @@ class AccountMove(models.Model):
                 )
                 sequence = self.env.ref(xmlid).sudo()
                 date_range = sequence._get_current_sequence(move.date)
-                if move.date.year == 2026:
-                    minimum_next = (1392 if move.move_type == "out_invoice" else 1092)
-                    if date_range.number_next < minimum_next:
-                        date_range.sudo().write({"number_next": minimum_next})
+                # Starting numbers agreed for the year 2026.
+                minimum_next = (
+                    (1390 if move.move_type == "out_invoice" else 1091)
+                    if move.date.year == 2026
+                    else 1
+                )
+
+                # The database may already contain higher numbers than
+                # the sequence counter, particularly after a restore.
+                # Only canonical four-digit numbers are considered here.
+                self.env["account.move"].flush_model(["name", "company_id"])
+                self.env.cr.execute(
+                    """
+                    SELECT COALESCE(MAX(RIGHT(name, 4)::integer), 0)
+                    FROM account_move
+                    WHERE company_id = %s
+                      AND id != %s
+                      AND name ~ %s
+                    """,
+                    (
+                        move.company_id.id,
+                        move.id,
+                        rf"^{prefix}{move.date.strftime('%y')}[0-9]{{4}}$",
+                    ),
+                )
+                maximum_existing = self.env.cr.fetchone()[0]
+
+                current_next = date_range.number_next_actual
+                target_next = max(
+                    minimum_next,
+                    current_next,
+                    maximum_existing + 1,
+                )
+                if current_next < target_next:
+                    date_range.sudo().write({"number_next": target_next})
                 if move.ildo_invoice_number:
                     supplied = move.ildo_invoice_number.strip()
                     expected = (
                         f"{prefix}{move.date.strftime('%y')}"
-                        f"{date_range.number_next:04d}"
+                        f"{target_next:04d}"
                     )
                     if supplied != expected:
                         raise ValidationError(
@@ -159,7 +190,7 @@ class AccountMove(models.Model):
                     sequence = self.env.ref(xmlid).sudo()
                     date_range = sequence._get_current_sequence(move.date)
                     target_next = int(match.group(1)) + 1
-                    if date_range.number_next < target_next:
+                    if date_range.number_next_actual < target_next:
                         date_range.sudo().write({"number_next": target_next})
 
         return super().action_post()
