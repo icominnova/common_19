@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <!-- Rapport PDF : Statistiques clients -->
+    <template id="customer_sales_stats_report">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="wizard">
+                <t t-set="company" t-value="wizard.company_id"/>
+                <t t-set="currency" t-value="company.currency_id"/>
+                <t t-set="stats" t-value="wizard._get_statistics()"/>
+                <t t-set="lines" t-value="stats['lines']"/>
+                <t t-set="total_ca" t-value="stats['total_ca']"/>
+                <t t-set="total_margin" t-value="stats['total_margin']"/>
+
+                <t t-call="web.external_layout">
+                    <div class="page">
+
+                        <h2 style="text-align:center; margin-bottom:5px;">
+                            Statistiques clients
+                        </h2>
+                        <h3 style="text-align:center; margin-top:0;">
+                            Palmarès des plus fortes ventes
+                        </h3>
+
+                        <p style="text-align:center; font-size:12px;">
+                            Période du
+                            <span t-esc="wizard.date_from.strftime('%d/%m/%Y')"/>
+                            au
+                            <span t-esc="wizard.date_to.strftime('%d/%m/%Y')"/>
+                        </p>
+
+                        <p style="font-size:11px;">
+                            Société : <strong t-esc="company.name"/>
+                        </p>
+
+                        <table class="table table-bordered" style="width:100%; border-collapse:collapse; font-size:11px;">
+                            <thead style="display:table-header-group;">
+                                <tr style="background-color:#eeeeee;">
+                                    <th style="width:18%;">Numéro client</th>
+                                    <th style="width:38%;">Intitulé</th>
+                                    <th style="width:24%; text-align:right;">CA Net TTC</th>
+                                    <th style="width:20%; text-align:right;">Marge</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+                                <tr t-foreach="lines" t-as="line">
+                                    <td><span t-esc="line['number']"/></td>
+                                    <td><span t-esc="line['name']"/></td>
+                                    <td style="text-align:right;">
+                                        <span t-esc="line['ca_ttc']" t-options="{'widget': 'monetary', 'display_currency': currency}"/>
+                                    </td>
+                                    <td style="text-align:right;">
+                                        <t t-if="line['margin'] is not None">
+                                            <span t-esc="line['margin']" t-options="{'widget': 'monetary', 'display_currency': currency}"/>
+                                        </t>
+                                        <t t-else="">—</t>
+                                    </td>
+                                </tr>
+                            </tbody>
+
+                            <tfoot>
+                                <tr style="background-color:#eeeeee; font-weight:bold;">
+                                    <td colspan="2">TOTAL GÉNÉRAL</td>
+                                    <td style="text-align:right;">
+                                        <span t-esc="total_ca" t-options="{'widget': 'monetary', 'display_currency': currency}"/>
+                                    </td>
+                                    <td style="text-align:right;">
+                                        <t t-if="total_margin is not None">
+                                            <span t-esc="total_margin" t-options="{'widget': 'monetary', 'display_currency': currency}"/>
+                                        </t>
+                                        <t t-else="">—</t>
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+
+    <!-- Action d'impression PDF -->
+    <record id="action_customer_sales_stats_report" model="ir.actions.report">
+        <field name="name">Statistiques clients</field>
+        <field name="model">ildo.customer.sales.stats.wizard</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">Custom_layouts_models_ILDO_OIL.customer_sales_stats_report</field>
+        <field name="report_file">Custom_layouts_models_ILDO_OIL.customer_sales_stats_report</field>
+        <field name="print_report_name">'Statistiques_clients_ILDO_OIL'</field>
+    </record>
+
+</odoo>
