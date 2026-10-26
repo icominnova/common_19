@@ -1,6 +1,6 @@
 {
     "name": "Custom_layouts_models_ILDO_OIL",
-    "version": "19.0.1.1.0",
+    "version": "19.0.2.0.0",
     "category": "Tools",
     "summary": "Agencements personnalisés pour les documents PDF",
     "description": "Ajoute de nouveaux agencements pour les factures, devis, bons, etc.",
@@ -15,6 +15,7 @@
     "data": [
         'security/ir.model.access.csv',
         'data/paperformat_no_header.xml',
+        'data/ildo_invoice_sequences.xml',
         'data/third_party_balance_report.xml',
         'views/res_partner_views.xml',
         'views/payment_receipt_professional.xml',
@@ -51,8 +52,6 @@
         'views/report_picking_custom.xml',
         'views/stock_menu_inherit.xml',
         'views/account_payment_piece_views.xml',
-        'views/customer_sales_stats_views.xml',
-        'views/customer_sales_stats_report.xml',
         'data/report_layouts.xml',
     ],
     "installable": True,
