@@ -53,6 +53,29 @@ class AccountMove(models.Model):
                     "SELECT pg_advisory_xact_lock(hashtext(%s), %s)",
                     ("ILDO_OIL_customer_document_sequence", move.company_id.id),
                 )
+                prefix = "FA" if move.move_type == "out_invoice" else "FV"
+                xmlid = (
+                    "Custom_layouts_models_ILDO_OIL.seq_ildo_customer_invoice"
+                    if move.move_type == "out_invoice"
+                    else "Custom_layouts_models_ILDO_OIL.seq_ildo_customer_credit"
+                )
+                sequence = self.env.ref(xmlid).sudo()
+                date_range = sequence._get_current_sequence(move.date)
+                if move.date.year == 2026:
+                    minimum_next = (1392 if move.move_type == "out_invoice" else 1092)
+                    if date_range.number_next < minimum_next:
+                        date_range.sudo().write({"number_next": minimum_next})
+                if move.ildo_invoice_number:
+                    supplied = move.ildo_invoice_number.strip()
+                    expected = (
+                        f"{prefix}{move.date.strftime('%y')}"
+                        f"{date_range.number_next:04d}"
+                    )
+                    if supplied != expected:
+                        raise ValidationError(
+                            _("Numéro manuel %s refusé. Prochain numéro attendu : %s.")
+                            % (supplied, expected)
+                        )
             if (
                 move.move_type in ("out_invoice", "out_refund")
                 and move.company_id == self.env.ref("base.main_company")
@@ -64,7 +87,7 @@ class AccountMove(models.Model):
                     if move.move_type == "out_invoice"
                     else "ildo_oil.customer_credit"
                 )
-                for _ in range(1000):
+                for attempt in range(1000):
                     assigned = (
                         self.env["ir.sequence"]
                         .with_company(move.company_id)
@@ -76,7 +99,7 @@ class AccountMove(models.Model):
                     clash = self.sudo().search(
                         [
                             ("company_id", "=", move.company_id.id),
-                            ("state", "!=", "cancel"),
+                            ("id", "!=", move.id),
                             ("name", "=", assigned),
                         ],
                         limit=1,
