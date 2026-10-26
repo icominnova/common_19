@@ -82,11 +82,14 @@ class IldoCustomerSalesStatsWizard(models.TransientModel):
             # Marge ILDO OIL = CA TTC - Avoirs TTC.
             marge = currency.round(ca_ttc - avoirs)
 
+            client_initials = "".join(
+                part[:1].upper()
+                for part in (partner.name or "").split()
+            )
+
             number = (
-                partner.ildo_client_reference
-                or partner.code_client
-                or partner.ref
-                or ""
+                partner.code_client
+                or f"C{client_initials}{partner.id}"
             )
 
             lines.append({
