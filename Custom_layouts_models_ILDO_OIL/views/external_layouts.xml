@@ -42,7 +42,7 @@
                         <div t-field="company.report_header" class="o_company_tagline mw-50 fw-bold">Company tagline</div>
                     </t>
                 </div>
-                <t t-if="not is_payment_list and not is_invoice_list and not is_saleorder_list and not is_purchaseorder_list and not is_stock_list">
+                <t t-if="not is_payment_list and not is_invoice_list and not is_saleorder_list and not is_purchaseorder_list and not is_stock_list and not is_customer_sales_stats">
                     <div class="row" style="padding:0px; background:transparent; max-width:700px; width:80%; margin:0px auto -20px 0px; font-size:12px;">
                         <ul class="list-unstyled" name="company_address_list">
                             <!-- Bloc 1 : Affichage de l'adresse de la société si les détails sont vides -->

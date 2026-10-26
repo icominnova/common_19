@@ -11,6 +11,7 @@
                 <t t-set="lines" t-value="stats['lines']"/>
                 <t t-set="total_ca" t-value="stats['total_ca']"/>
                 <t t-set="total_margin" t-value="stats['total_margin']"/>
+                <t t-set="is_customer_sales_stats" t-value="True"/>
 
                 <t t-call="web.external_layout">
                     <div class="page">
@@ -27,10 +28,6 @@
                             <span t-esc="wizard.date_from.strftime('%d/%m/%Y')"/>
                             au
                             <span t-esc="wizard.date_to.strftime('%d/%m/%Y')"/>
-                        </p>
-
-                        <p style="font-size:11px;">
-                            Société : <strong t-esc="company.name"/>
                         </p>
 
                         <table class="table table-bordered" style="width:100%; border-collapse:collapse; font-size:11px;">
