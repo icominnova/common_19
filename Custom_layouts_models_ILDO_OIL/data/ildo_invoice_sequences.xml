@@ -27,14 +27,14 @@
             <field name="sequence_id" ref="seq_ildo_customer_invoice"/>
             <field name="date_from">2026-01-01</field>
             <field name="date_to">2026-12-31</field>
-            <field name="number_next">1391</field>
+            <field name="number_next">1400</field>
         </record>
 
         <record id="seq_ildo_customer_credit_2026" model="ir.sequence.date_range">
             <field name="sequence_id" ref="seq_ildo_customer_credit"/>
             <field name="date_from">2026-01-01</field>
             <field name="date_to">2026-12-31</field>
-            <field name="number_next">1092</field>
+            <field name="number_next">1101</field>
         </record>
     </data>
 </odoo>
