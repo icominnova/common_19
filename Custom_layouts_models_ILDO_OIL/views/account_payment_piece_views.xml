@@ -1,21 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
-
-    <!-- Champ Numéro de pièce dans la fenêtre Payer -->
+    <!-- Fenêtre Payer : numéro attribué à la validation -->
     <record id="view_payment_register_form_inherit_ildo_piece" model="ir.ui.view">
         <field name="name">account.payment.register.form.ildo.piece</field>
         <field name="model">account.payment.register</field>
         <field name="inherit_id" ref="account.view_account_payment_register_form"/>
         <field name="arch" type="xml">
             <xpath expr="//field[@name='communication']" position="after">
-                <field name="ildo_piece_number"
-                       string="Numéro de pièce"
-                       placeholder="Saisir le numéro de pièce"/>
+                <field name="ildo_piece_number" invisible="1"/>
             </xpath>
         </field>
     </record>
 
-    <!-- Colonne Numéro de pièce dans la liste des paiements -->
+    <!-- Colonne dans la liste des paiements -->
     <record id="view_account_payment_tree_inherit_ildo_piece" model="ir.ui.view">
         <field name="name">account.payment.list.ildo.piece</field>
         <field name="model">account.payment</field>
@@ -24,12 +21,13 @@
             <xpath expr="//field[@name='name']" position="after">
                 <field name="ildo_piece_number"
                        string="Numéro de pièce"
-                       optional="show"/>
+                       optional="show"
+                       readonly="1"/>
             </xpath>
         </field>
     </record>
-    
-       <!-- Numéro de pièce sur les paiements créés directement -->
+
+    <!-- Numéro automatique sur la fiche de paiement -->
     <record id="view_account_payment_form_inherit_ildo_piece" model="ir.ui.view">
         <field name="name">account.payment.form.inherit.ildo.piece</field>
         <field name="model">account.payment</field>
@@ -38,9 +36,9 @@
             <xpath expr="//field[@name='memo']" position="after">
                 <field name="ildo_piece_number"
                        string="Numéro de pièce"
-                       placeholder="Saisir le numéro de pièce"
-                       readonly="state != 'draft'"/>
+                       readonly="1"
+                       placeholder="Attribué automatiquement à la validation"/>
             </xpath>
         </field>
-    </record>   
+    </record>
 </odoo>

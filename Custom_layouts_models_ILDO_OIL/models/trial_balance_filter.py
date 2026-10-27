@@ -1,4 +1,3 @@
-
 from odoo import models
 
 
@@ -16,13 +15,5 @@ class IldoTrialBalanceReportHandler(models.AbstractModel):
         block_id,
         fiscal_year_start,
     ):
-        """
-        Balance comptable ILDO OIL.
-
-        Ne pas ajouter la colonne Solde initial.
-
-        Le moteur standard conserve les colonnes Débit et Crédit
-        de la période et calcule le Solde final à partir de
-        ces mouvements uniquement.
-        """
+        """Supprimer le Solde initial de la Balance comptable."""
         return headers, groups, columns

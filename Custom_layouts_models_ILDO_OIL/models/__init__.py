@@ -12,3 +12,6 @@ from . import general_ledger_filter
 from . import account_payment_piece
 from . import customer_sales_stats_wizard
 from . import trial_balance_filter
+from . import res_config_settings_piece
+from . import account_invoice_piece
+from . import account_vendor_piece
