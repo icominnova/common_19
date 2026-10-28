@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="view_res_config_settings_ildo_piece" model="ir.ui.view">
+        <field name="name">res.config.settings.ildo.piece</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="account.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//app[@name='account']" position="inside">
+                <block title="Numérotation des pièces ILDO OIL" name="ildo_piece_settings">
+                    <setting id="ildo_piece_auto_setting"
+                             string="Numérotation automatique des pièces"
+                             help="Attribuer automatiquement un numéro aux paiements bancaires, avec un compteur indépendant par journal.">
+                        <field name="ildo_piece_auto_enabled"/>
+                    </setting>
+                    <setting id="ildo_piece_frequency_setting"
+                             string="Fréquence de réinitialisation"
+                             invisible="not ildo_piece_auto_enabled">
+                        <field name="ildo_piece_reset_frequency" required="ildo_piece_auto_enabled"/>
+                        <div class="text-muted">
+                            Un seul réglage pour tous les journaux bancaires.
+                            Chaque journal conserve son propre compteur.
+                        </div>
+                    </setting>
+                </block>
+            </xpath>
+        </field>
+    </record>
+</odoo>
