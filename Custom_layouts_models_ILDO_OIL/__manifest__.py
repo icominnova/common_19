@@ -5,7 +5,9 @@
     "summary": "Agencements personnalisés pour les documents PDF",
     "description": "Ajoute de nouveaux agencements pour les factures, devis, bons, etc.",
     "author": "Alain GANSONRE",
-    "depends": ["base", "sale", "sale_stock", "web", "account", "account_reports", "uom", "purchase", "stock"],
+    "depends": ["base", "sale", "sale_stock", "web", "account", "account_reports", "account_accountant", "uom", "purchase", "stock",
+        'account_batch_payment',
+    ],
     "external_dependencies": {"python": ["num2words"]},
     "assets": {
         "web.assets_backend": [
@@ -51,6 +53,8 @@
         'views/report_picking_custom.xml',
         'views/stock_menu_inherit.xml',
         'views/account_payment_piece_views.xml',
+        'views/payment_auto_reconcile_views.xml',
+        'views/payment_auto_reconcile_execution_views.xml',
         'views/customer_sales_stats_views.xml',
         'views/customer_sales_stats_report.xml',
         "views/res_config_settings_piece_views.xml",
