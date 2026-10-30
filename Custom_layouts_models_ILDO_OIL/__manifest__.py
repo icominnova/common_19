@@ -1,6 +1,6 @@
 {
     "name": "Custom_layouts_models_ILDO_OIL",
-    "version": "19.0.1.1.0",
+    "version": "19.0.2.0.1",
     "category": "Tools",
     "summary": "Agencements personnalisés pour les documents PDF",
     "description": "Ajoute de nouveaux agencements pour les factures, devis, bons, etc.",
