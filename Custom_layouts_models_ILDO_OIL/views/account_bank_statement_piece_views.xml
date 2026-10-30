@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <!-- Numéro de pièce dans la liste des transactions -->
+    <record id="view_ildo_bank_statement_line_list_piece" model="ir.ui.view">
+        <field name="name">account.bank.statement.line.list.ildo.piece</field>
+        <field name="model">account.bank.statement.line</field>
+        <field name="inherit_id"
+               ref="account_accountant.view_bank_statement_line_tree_bank_rec_widget"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='payment_ref']" position="after">
+                <field name="ildo_reconcile_piece_number"
+                       string="Numéro de pièce"
+                       optional="show"
+                       readonly="1"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Numéro de pièce dans le formulaire de transaction -->
+    <record id="view_ildo_bank_statement_line_form_piece" model="ir.ui.view">
+        <field name="name">account.bank.statement.line.form.ildo.piece</field>
+        <field name="model">account.bank.statement.line</field>
+        <field name="inherit_id"
+               ref="account_accountant.view_bank_statement_line_form_bank_rec_widget"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='payment_ref']" position="after">
+                <field name="ildo_reconcile_piece_number"
+                       string="Numéro de pièce"
+                       readonly="1"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

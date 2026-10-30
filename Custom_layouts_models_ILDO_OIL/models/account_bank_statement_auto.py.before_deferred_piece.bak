@@ -1,0 +1,93 @@
+from odoo import api, fields, models
+
+
+class IldoStatementPaymentTrace(models.Model):
+    _inherit = 'account.bank.statement.line'
+
+    ildo_source_payment_id = fields.Many2one(
+        'account.payment',
+        string='Paiement source ILDO',
+        copy=False, readonly=True, index=True, ondelete='restrict',
+        check_company=True,
+    )
+
+    _ildo_unique_source_payment = models.Constraint(
+        'UNIQUE(ildo_source_payment_id)',
+        'Une transaction ILDO existe déjà pour ce paiement.',
+    )
+
+
+    # Numéro propre aux transactions de réconciliation ILDO.
+    # Indépendant des numéros de pièces des paiements et factures.
+    ildo_reconcile_piece_number = fields.Char(
+        string="Numéro de pièce",
+        readonly=True,
+        copy=False,
+        index=True,
+    )
+
+    _ildo_unique_reconcile_piece = models.Constraint(
+        "UNIQUE(company_id, journal_id, ildo_reconcile_piece_number)",
+        "Ce numéro de pièce existe déjà dans ce journal.",
+    )
+
+    def _ildo_assign_reconcile_piece_number(self):
+        Sequence = self.env["ir.sequence"].sudo()
+
+        for line in self.sorted(
+            key=lambda r: (r.company_id.id, r.journal_id.id, r.id)
+        ):
+            if (
+                not line.ildo_source_payment_id
+                or line.ildo_reconcile_piece_number
+            ):
+                continue
+
+            journal = line.journal_id
+            company = line.company_id
+
+            # Sérialise l'attribution dans chaque journal.
+            self.env.cr.execute(
+                """
+                SELECT id
+                FROM account_journal
+                WHERE id = %s
+                FOR UPDATE
+                """,
+                [journal.id],
+            )
+
+            code = (
+                f"ildo.reconcile.piece."
+                f"{company.id}.{journal.id}.CONTINU"
+            )
+
+            sequence = Sequence.search(
+                [
+                    ("code", "=", code),
+                    ("company_id", "=", company.id),
+                ],
+                limit=1,
+            )
+
+            if not sequence:
+                sequence = Sequence.create({
+                    "name": f"Pièces réconciliation ILDO - {journal.name}",
+                    "code": code,
+                    "implementation": "no_gap",
+                    "padding": 1,
+                    "number_increment": 1,
+                    "number_next": 1,
+                    "company_id": company.id,
+                })
+
+            number = sequence.next_by_id()
+            line.write({
+                "ildo_reconcile_piece_number": number,
+            })
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        lines = super().create(vals_list)
+        lines._ildo_assign_reconcile_piece_number()
+        return lines
