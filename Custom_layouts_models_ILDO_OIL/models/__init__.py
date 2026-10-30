@@ -15,3 +15,6 @@ from . import trial_balance_filter
 from . import res_config_settings_piece
 from . import account_invoice_piece
 from . import account_vendor_piece
+from . import payment_auto_reconcile_wizard
+from . import account_bank_statement_auto
+from . import payment_auto_reconcile_execution

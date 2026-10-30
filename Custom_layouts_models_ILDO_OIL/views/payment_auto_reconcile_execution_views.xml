@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="view_payment_auto_reconcile_execution_form" model="ir.ui.view">
+        <field name="name">ildo.payment.auto.reconcile.wizard.execution.form</field>
+        <field name="model">ildo.payment.auto.reconcile.wizard</field>
+        <field name="inherit_id" ref="view_payment_auto_reconcile_wizard_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form/footer" position="before">
+                <separator string="Confirmation avant exécution"/>
+                <div class="d-flex align-items-center gap-2 w-100">
+                    <field name="confirm_real_movements" nolabel="1"/>
+                    <label for="confirm_real_movements"
+                           string="Je confirme que ces mouvements ont réellement eu lieu et ne sont pas déjà importés."/>
+                </div>
+                <div class="w-100">
+                    <field name="execution_report_html" nolabel="1" readonly="1"/>
+                </div>
+            </xpath>
+            <xpath expr="//footer/button[@name='action_simulate']" position="after">
+                <button name="action_execute_ildo_reconciliation"
+                        string="Exécuter la réconciliation"
+                        type="object"
+                        class="btn-secondary"
+                        confirm="Cette opération va créer et valider les transactions comptables correspondantes, puis effectuer leur rapprochement dans les journaux concernés. Voulez-vous poursuivre la réconciliation ?"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>
