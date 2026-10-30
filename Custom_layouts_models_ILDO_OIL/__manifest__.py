@@ -55,6 +55,7 @@
         'views/stock_menu_inherit.xml',
         'views/account_payment_piece_views.xml',
         'views/payment_auto_reconcile_views.xml',
+        "views/account_bank_statement_piece_views.xml",
         'views/payment_auto_reconcile_execution_views.xml',
         'views/customer_sales_stats_views.xml',
         'views/customer_sales_stats_report.xml',

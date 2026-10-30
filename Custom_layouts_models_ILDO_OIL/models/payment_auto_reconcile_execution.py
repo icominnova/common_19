@@ -157,6 +157,8 @@ class IldoPaymentAutoReconcileExecution(models.TransientModel):
 
                     statement = self.env['account.bank.statement.line'].with_company(
                         p.company_id
+                    ).with_context(
+                        ildo_defer_reconcile_piece=True
                     ).create({
                         'journal_id': p.journal_id.id,
                         'company_id': p.company_id.id,
@@ -197,7 +199,23 @@ class IldoPaymentAutoReconcileExecution(models.TransientModel):
                                 actual=invoice.amount_residual,
                             ))
 
-                    results.append((p, 'Réconcilié : transaction %s' % statement.id))
+                    # Attribuer la pièce seulement après tous les contrôles.
+                    # L'attribution reste dans le savepoint du paiement.
+                    statement._ildo_assign_reconcile_piece_number()
+                    statement.invalidate_recordset()
+
+                    if not statement.ildo_reconcile_piece_number:
+                        raise ValidationError(_(
+                            'Numéro de pièce non attribué après réconciliation.'
+                        ))
+
+                    results.append((
+                        p,
+                        'Réconcilié : transaction %s, pièce %s' % (
+                            statement.id,
+                            statement.ildo_reconcile_piece_number,
+                        ),
+                    ))
             except Exception as exc:
                 results.append((p, 'Échec — annulé : %s' % str(exc)[:160]))
 
