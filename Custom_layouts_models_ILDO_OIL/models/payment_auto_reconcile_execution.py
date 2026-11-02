@@ -2,7 +2,7 @@ from collections import Counter, defaultdict
 from datetime import timedelta
 from html import escape
 
-from odoo import fields, models, _
+from odoo import Command, fields, models, _
 from odoo.exceptions import UserError, ValidationError
 
 
@@ -186,9 +186,41 @@ class IldoPaymentAutoReconcileExecution(models.TransientModel):
                         'payment_ref': p.name,
                         'ildo_source_payment_id': p.id,
                     })
-                    counterpart_vals = p.with_company(
-                        p.company_id
-                    )._get_amls_for_payment_without_move()
+                    if (
+                        p.state == 'paid'
+                        and not p.move_id
+                        and not p.invoice_ids
+                        and p.payment_type == 'inbound'
+                    ):
+                        company = p.company_id
+                        currency = p.currency_id
+                        account = p.with_company(
+                            company
+                        ).partner_id.property_account_receivable_id
+
+                        if not account:
+                            raise ValidationError(
+                                _('Compte client introuvable.')
+                            )
+                        if currency != company.currency_id:
+                            raise ValidationError(
+                                _('Devise du paiement non prise en charge.')
+                            )
+
+                        amount = -p.amount_signed
+                        counterpart_vals = [{
+                            'name': p.name,
+                            'partner_id': p.partner_id.id,
+                            'account_id': account.id,
+                            'currency_id': currency.id,
+                            'amount_currency': amount,
+                            'balance': amount,
+                            'payment_lines_ids': [Command.set(p.ids)],
+                        }]
+                    else:
+                        counterpart_vals = p.with_company(
+                            p.company_id
+                        )._get_amls_for_payment_without_move()
                     if not counterpart_vals:
                         raise ValidationError(_('Aucune contrepartie calculée.'))
                     statement.with_company(p.company_id)._reconcile_payments(
