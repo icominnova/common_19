@@ -1,4 +1,5 @@
 from collections import Counter, defaultdict
+from datetime import timedelta
 from html import escape
 
 from odoo import fields, models, _
@@ -81,17 +82,18 @@ class IldoPaymentAutoReconcileExecution(models.TransientModel):
         #
         # En revanche, une transaction importée, non identifiée
         # ou incohérente reste bloquante par précaution.
+        # Contrôle global des transactions ILDO traçables.
+        # Une transaction ILDO incohérente reste bloquante,
+        # même si sa date est éloignée de celle du paiement.
         same_amount_lines = st_model.search([
             ('journal_id', '=', journal.id),
             ('company_id', '=', payment.company_id.id),
             ('amount', '=', payment.amount),
+            ('ildo_source_payment_id', '!=', False),
         ])
 
         for st_line in same_amount_lines:
             source = st_line.ildo_source_payment_id
-
-            if not source:
-                return 'Transaction potentiellement importée de même montant'
 
             if source == payment:
                 return 'Transaction ILDO déjà créée pour ce paiement'
@@ -108,6 +110,22 @@ class IldoPaymentAutoReconcileExecution(models.TransientModel):
                 and source.company_id == payment.company_id
             ):
                 return 'Transaction ILDO existante à vérifier'
+
+        # Les transactions importées sans source ILDO ne sont
+        # suspectes sur le seul montant que dans une fenêtre
+        # de sept jours autour de la date du paiement.
+
+        recent_unidentified = st_model.search_count([
+            ('journal_id', '=', journal.id),
+            ('company_id', '=', payment.company_id.id),
+            ('amount', '=', payment.amount),
+            ('ildo_source_payment_id', '=', False),
+            ('date', '>=', payment.date - timedelta(days=7)),
+            ('date', '<=', payment.date + timedelta(days=7)),
+        ])
+
+        if recent_unidentified:
+            return 'Transaction récente de même montant à vérifier'
 
         return None
 
