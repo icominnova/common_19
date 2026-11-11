@@ -1,11 +1,48 @@
 import re
 
-from odoo import _, fields, models
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
 
 class AccountMove(models.Model):
     _inherit = "account.move"
+
+    ildo_be_number = fields.Char(
+        string="N° BE",
+        compute="_compute_ildo_be_number",
+        readonly=True,
+    )
+
+    @api.depends(
+        "invoice_line_ids.sale_line_ids.order_id.ildo_be_number",
+        "reversed_entry_id.ildo_be_number",
+    )
+    def _compute_ildo_be_number(self):
+        for move in self:
+            if move.move_type not in ("out_invoice", "out_refund"):
+                move.ildo_be_number = False
+                continue
+
+            orders = move.invoice_line_ids.mapped(
+                "sale_line_ids.order_id"
+            )
+
+            numbers = {
+                number.strip()
+                for number in orders.mapped("ildo_be_number")
+                if number and number.strip()
+            }
+
+            if move.move_type == "out_refund" and move.reversed_entry_id:
+                original = move.reversed_entry_id
+                if original.move_type == "out_invoice":
+                    original_be = (original.ildo_be_number or "").strip()
+                    if original_be:
+                        numbers.add(original_be)
+
+            move.ildo_be_number = (
+                next(iter(numbers)) if len(numbers) == 1 else False
+            )
 
     def action_ildo_create_credit_note(self):
         """Open a standard, linked credit note without displaying the wizard."""
