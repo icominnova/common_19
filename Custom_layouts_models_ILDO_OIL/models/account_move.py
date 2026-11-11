@@ -18,7 +18,7 @@ class AccountMove(models.Model):
     )
     def _compute_ildo_be_number(self):
         for move in self:
-            if move.move_type != "out_invoice":
+            if move.move_type not in ("out_invoice", "out_refund"):
                 move.ildo_be_number = False
                 continue
 
