@@ -52,8 +52,6 @@
         'views/report_picking_custom.xml',
         'views/stock_menu_inherit.xml',
         'views/account_payment_piece_views.xml',
-        'views/customer_sales_stats_views.xml',
-        'views/customer_sales_stats_report.xml',
         'data/report_layouts.xml',
     ],
     "installable": True,

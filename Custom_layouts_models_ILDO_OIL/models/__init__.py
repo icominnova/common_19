@@ -10,4 +10,3 @@ from . import stock_picking
 from . import third_party_balance_report
 from . import general_ledger_filter
 from . import account_payment_piece
-from . import customer_sales_stats_wizard

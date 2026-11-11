@@ -42,7 +42,7 @@
                         <div t-field="company.report_header" class="o_company_tagline mw-50 fw-bold">Company tagline</div>
                     </t>
                 </div>
-                <t t-if="not is_payment_list and not is_invoice_list and not is_saleorder_list and not is_purchaseorder_list and not is_stock_list and not is_customer_sales_stats">
+                <t t-if="not is_payment_list and not is_invoice_list and not is_saleorder_list and not is_purchaseorder_list and not is_stock_list">
                     <div class="row" style="padding:0px; background:transparent; max-width:700px; width:80%; margin:0px auto -20px 0px; font-size:12px;">
                         <ul class="list-unstyled" name="company_address_list">
                             <!-- Bloc 1 : Affichage de l'adresse de la société si les détails sont vides -->
@@ -109,10 +109,7 @@
                                             <span t-field="o.client_order_ref"/>
                                         </t>
                                         <t t-elif="o and o._name == 'account.move'">
-                                            <t t-set="year" t-value="str(o.invoice_date.year)[-2:] if o.invoice_date else ''"/>
-                                            <t t-set="seq" t-value="o.name.split('/')[-1] if o.name and '/' in o.name else o.name"/>
-                                            <t t-set="seq" t-value="str(seq or '').zfill(3)"/>
-                                            <span t-out="'BE' + year + seq"/>
+                                            <span t-out="o.ildo_be_number or ''"/>
                                         </t>
                                         <t t-elif="o and o._name == 'account.payment'">
                                             <span t-field="o.name"/>
