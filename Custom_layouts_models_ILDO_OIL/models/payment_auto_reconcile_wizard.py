@@ -20,6 +20,17 @@ class IldoPaymentAutoReconcileWizard(models.TransientModel):
         required=True,
         default=fields.Date.context_today,
     )
+    journal_ids = fields.Many2many(
+        "account.journal",
+        string="Journaux à rapprocher",
+        domain=[("type", "in", ["bank", "cash"])],
+        help=(
+            "Sélectionnez les journaux à inclure dans la simulation "
+            "et la réconciliation. Sans sélection, tous les "
+            "journaux autorisés sont pris en compte."
+        ),
+    )
+
     preview_html = fields.Html(
         string="Résultat de la simulation",
         readonly=True,

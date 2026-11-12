@@ -18,13 +18,20 @@ class IldoPaymentAutoReconcileExecution(models.TransientModel):
         self.ensure_one()
         if self.date_from > self.date_to:
             raise UserError(_('La date de début doit précéder la date de fin.'))
-        return self.env['account.payment'].search([
+        domain = [
             ('date', '>=', self.date_from),
             ('date', '<=', self.date_to),
             ('company_id', 'in', self.env.companies.ids),
             ('journal_id.type', 'in', ['bank', 'cash']),
             ('state', 'in', ['in_process', 'paid']),
-        ], order='journal_id,date,id')
+        ]
+
+        if self.journal_ids:
+            domain.append(('journal_id', 'in', self.journal_ids.ids))
+
+        return self.env['account.payment'].search(
+            domain, order='journal_id,date,id'
+        )
 
     def _execution_blocker(self, payment, invoice_counts):
         journal = payment.journal_id
@@ -77,55 +84,29 @@ class IldoPaymentAutoReconcileExecution(models.TransientModel):
             ('payment_lines_ids', 'in', [payment.id]),
         ]):
             return 'Ligne comptable déjà liée au paiement'
-        # Une transaction ILDO d'un autre paiement correctement
-        # rapproché ne constitue pas un doublon du paiement courant.
+        # Les doublons sont recherchés par numéro de paiement,
+        # et non par montant, car plusieurs paiements peuvent
+        # légitimement avoir le même montant.
         #
-        # En revanche, une transaction importée, non identifiée
-        # ou incohérente reste bloquante par précaution.
-        # Contrôle global des transactions ILDO traçables.
-        # Une transaction ILDO incohérente reste bloquante,
-        # même si sa date est éloignée de celle du paiement.
-        same_amount_lines = st_model.search([
+        # Les contrôles sur ildo_source_payment_id et
+        # payment_lines_ids restent actifs ci-dessus.
+        if not payment.name:
+            return 'Numéro de paiement manquant'
+
+        same_reference_lines = st_model.search([
             ('journal_id', '=', journal.id),
             ('company_id', '=', payment.company_id.id),
-            ('amount', '=', payment.amount),
-            ('ildo_source_payment_id', '!=', False),
+            ('payment_ref', '=', payment.name),
         ])
 
-        for st_line in same_amount_lines:
-            source = st_line.ildo_source_payment_id
-
-            if source == payment:
+        for st_line in same_reference_lines:
+            if st_line.ildo_source_payment_id == payment:
                 return 'Transaction ILDO déjà créée pour ce paiement'
 
-            linked = st_line.move_id.line_ids.filtered(
-                lambda line: source in line.payment_lines_ids
-            )
+            if st_line.ildo_source_payment_id:
+                return 'Numéro de paiement déjà utilisé par une autre transaction ILDO'
 
-            if not (
-                st_line.is_reconciled
-                and linked
-                and source.state == 'paid'
-                and source.journal_id == journal
-                and source.company_id == payment.company_id
-            ):
-                return 'Transaction ILDO existante à vérifier'
-
-        # Les transactions importées sans source ILDO ne sont
-        # suspectes sur le seul montant que dans une fenêtre
-        # de sept jours autour de la date du paiement.
-
-        recent_unidentified = st_model.search_count([
-            ('journal_id', '=', journal.id),
-            ('company_id', '=', payment.company_id.id),
-            ('amount', '=', payment.amount),
-            ('ildo_source_payment_id', '=', False),
-            ('date', '>=', payment.date - timedelta(days=7)),
-            ('date', '<=', payment.date + timedelta(days=7)),
-        ])
-
-        if recent_unidentified:
-            return 'Transaction récente de même montant à vérifier'
+            return 'Transaction existante avec ce numéro de paiement à vérifier'
 
         return None
 
