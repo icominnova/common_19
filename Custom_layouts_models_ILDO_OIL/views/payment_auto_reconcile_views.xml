@@ -8,6 +8,9 @@
                 <group>
                     <field name="date_from"/>
                     <field name="date_to"/>
+                    <field name="journal_ids"
+                           widget="many2many_tags"
+                           options="{'no_create': True, 'no_create_edit': True}"/>
                 </group>
                 <div class="w-100">
                     <field name="preview_html" nolabel="1" readonly="1"/>
