@@ -15,10 +15,10 @@ class IldoTrialBalanceReportHandler(models.AbstractModel):
         block_id,
         fiscal_year_start,
     ):
-        """Afficher le solde initial uniquement pour les recherches 4 et 5."""
+        """Afficher le solde initial pour toutes les recherches commencant par 4 ou 5."""
         search = (options.get("filter_search_bar") or "").strip()
 
-        if search not in ("4", "5"):
+        if not search.startswith(("4", "5")):
             return headers, groups, columns
 
         return super()._add_initial_column(

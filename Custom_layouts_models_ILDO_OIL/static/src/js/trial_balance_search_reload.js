@@ -4,7 +4,7 @@ import { patch } from "@web/core/utils/patch";
 import { AccountReportSearchBar } from "@account_reports/components/account_report/search_bar/search_bar";
 
 const requiresInitialBalance = (value) =>
-    ["4", "5"].includes(String(value || "").trim());
+    /^[45]/.test(String(value || "").trim());
 
 patch(AccountReportSearchBar.prototype, {
     async search() {
