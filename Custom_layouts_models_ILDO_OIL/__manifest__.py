@@ -19,6 +19,7 @@
         'data/paperformat_no_header.xml',
         'data/ildo_invoice_sequences.xml',
         'data/third_party_balance_report.xml',
+        'data/third_party_balance_native_test.xml',
         'views/res_partner_views.xml',
         'views/payment_receipt_professional.xml',
         'views/account_move_views.xml',
