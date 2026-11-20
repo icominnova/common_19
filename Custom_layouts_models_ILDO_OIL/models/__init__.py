@@ -9,7 +9,6 @@ from . import sale_order
 from . import stock_picking
 from . import third_party_balance_report
 from . import general_ledger_filter
-from . import general_ledger_portrait
 from . import account_payment_piece
 from . import customer_sales_stats_wizard
 from . import trial_balance_filter

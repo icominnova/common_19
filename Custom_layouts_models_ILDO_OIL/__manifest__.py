@@ -14,9 +14,6 @@
             "Custom_layouts_models_ILDO_OIL/static/src/js/general_ledger_search.js",
             "Custom_layouts_models_ILDO_OIL/static/src/js/trial_balance_search_reload.js",
         ],
-        "account_reports.assets_pdf_export": [
-            "Custom_layouts_models_ILDO_OIL/static/src/scss/general_ledger_portrait.scss",
-        ],
     },
     "data": [
         'security/ir.model.access.csv',
