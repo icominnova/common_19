@@ -14,7 +14,7 @@
             model="account.report">
 
         <field name="name">
-            Balance des tiers (TEST)
+            Balance des tiers
         </field>
 
         <field name="root_report_id" eval="False"/>
@@ -75,7 +75,7 @@
     <record id="action_ildo_third_party_balance_native_test"
             model="ir.actions.client">
 
-        <field name="name">Balance des tiers (TEST)</field>
+        <field name="name">Balance des tiers</field>
         <field name="tag">account_report</field>
         <field name="path">third-party-balance-native-test</field>
 
@@ -88,10 +88,55 @@
 
     <menuitem
         id="menu_ildo_third_party_balance_native_test"
-        name="Balance des tiers (TEST)"
+        name="Balance des tiers"
         parent="account.account_reports_partners_reports_menu"
         action="action_ildo_third_party_balance_native_test"
         sequence="31"
         groups="account.group_account_invoice,account.group_account_readonly"/>
+
+
+    <!-- ILDO_BALANCE_FINALISATION_NATIVE_20261120 -->
+
+    <!--
+        L'ancien rapport est conserve pour
+        permettre un retour arriere.
+    -->
+
+    <record id="ildo_third_party_balance_report"
+            model="account.report">
+
+        <field name="name">
+            Balance des tiers (ARCHIVE - ancien calcul)
+        </field>
+
+    </record>
+
+    <!--
+        Le menu historique reste actif.
+        Son action ouvre maintenant
+        le nouveau rapport natif.
+    -->
+
+    <record id="action_ildo_third_party_balance"
+            model="ir.actions.client">
+
+        <field name="name">Balance des tiers</field>
+
+        <field name="context"
+               eval="{'report_id': ref('ildo_third_party_balance_native_test_report')}"/>
+
+    </record>
+
+    <!--
+        Desactiver le menu provisoire.
+        Evite deux menus Balance des tiers.
+    -->
+
+    <record id="menu_ildo_third_party_balance_native_test"
+            model="ir.ui.menu">
+
+        <field name="active" eval="False"/>
+
+    </record>
 
 </odoo>
