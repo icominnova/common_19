@@ -1,0 +1,118 @@
+/*
+ * ILDO OIL - Livre des tiers PDF portrait.
+ * Style reserve exclusivement au nouveau
+ * modele d'impression portrait.
+ */
+
+.o_content.ildo_tiers_portrait_pdf {
+
+    margin: 4px !important;
+
+    header {
+        padding: 4px !important;
+        margin-bottom: 8px !important;
+
+        .o_title {
+            font-size: 14pt !important;
+            line-height: 1.2;
+        }
+
+        .o_company_logo {
+            max-height: 44px;
+        }
+    }
+
+    .ildo_tiers_portrait_table_wrap {
+        width: 100%;
+    }
+
+    table.ildo_tiers_portrait_table {
+
+        width: 100% !important;
+        table-layout: fixed !important;
+        border-collapse: collapse !important;
+        margin: 0 0 12px !important;
+        padding: 0 !important;
+
+        font-family: Verdana, Arial, sans-serif;
+        font-size: 10pt !important;
+
+        > thead {
+
+            display: table-header-group;
+            white-space: normal !important;
+
+            th {
+                padding: 5px 3px !important;
+                font-size: 9.5pt !important;
+                background: #e7e9ed;
+                border-bottom: 1px solid #a0a0a0;
+                vertical-align: middle;
+                text-align: left;
+            }
+        }
+
+        > tbody {
+
+            white-space: normal !important;
+
+            tr {
+                page-break-inside: avoid;
+            }
+
+            td {
+                padding: 5px 3px !important;
+                line-height: 1.28 !important;
+                vertical-align: top;
+                max-width: none !important;
+                overflow-wrap: break-word;
+                word-wrap: break-word;
+                border-bottom: 1px solid #ddd;
+            }
+        }
+
+        .ildo_tiers_operation {
+            white-space: normal !important;
+            word-break: break-word;
+        }
+
+        .ildo_tiers_line_name {
+            font-size: 10pt;
+            white-space: normal !important;
+            overflow-wrap: break-word;
+        }
+
+        .ildo_tiers_meta {
+            margin-top: 3px;
+            font-size: 8.5pt;
+            color: #424242;
+            line-height: 1.25;
+            white-space: normal !important;
+        }
+
+        .ildo_tiers_meta_item {
+            display: inline-block;
+            margin-right: 7px;
+            margin-bottom: 2px;
+            white-space: normal !important;
+            overflow-wrap: break-word;
+        }
+
+        .ildo_tiers_comment {
+            margin-top: 3px;
+            font-size: 8.5pt;
+            white-space: normal !important;
+        }
+
+        td.ildo_tiers_amount,
+        th.ildo_tiers_amount {
+
+            text-align: right !important;
+            font-size: 9.5pt !important;
+            white-space: normal !important;
+            overflow-wrap: break-word !important;
+            word-wrap: break-word !important;
+            word-break: break-all;
+        }
+    }
+}

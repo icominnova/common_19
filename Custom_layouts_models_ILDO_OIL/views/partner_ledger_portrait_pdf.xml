@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <template
+        id="partner_ledger_portrait_pdf_main"
+        inherit_id="account_reports.pdf_export_main"
+        primary="True"
+    >
+
+        <xpath
+            expr="//div[@class='d-flex align-items-start']"
+            position="replace"
+        >
+
+            <div class="ildo_tiers_portrait_table_wrap">
+
+                <table class="o_table ildo_tiers_portrait_table">
+
+                    <colgroup>
+                        <col style="width: 43%;"/>
+                        <col style="width: 19%;"/>
+                        <col style="width: 19%;"/>
+                        <col style="width: 19%;"/>
+                    </colgroup>
+
+                    <thead>
+                        <tr>
+                            <th>Partenaire / Écriture</th>
+                            <th class="ildo_tiers_amount">Débit</th>
+                            <th class="ildo_tiers_amount">Crédit</th>
+                            <th class="ildo_tiers_amount">Solde</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+
+                        <t t-foreach="lines" t-as="line">
+
+                            <t
+                                t-set="level_class"
+                                t-value="'o_line_level_' + str(line.get('level', 0))"
+                            />
+
+                            <t
+                                t-set="bold_class"
+                                t-value="' o_fw_bold' if line.get('unfolded') or 'total' in str(line.get('id', '')) else ''"
+                            />
+
+                            <tr
+                                t-att-class="level_class + bold_class"
+                                t-att-style="'page-break-before: always;' if line.get('page_break') else ''"
+                            >
+
+                                <td class="ildo_tiers_operation">
+
+                                    <span
+                                        class="ildo_tiers_line_name"
+                                        t-out="line.get('name')"
+                                    />
+
+                                    <t t-if="line.get('annotations') and not show_last_annotations">
+                                        <t t-foreach="annotations" t-as="annotation">
+                                            <t t-if="annotation.get('number') in (line.get('annotations') or [])">
+                                                <sup t-out="annotation['number']"/>
+                                            </t>
+                                        </t>
+                                    </t>
+
+                                    <div
+                                        t-if="line.get('ildo_tiers_portrait_meta')"
+                                        class="ildo_tiers_meta"
+                                    >
+
+                                        <t
+                                            t-foreach="line['ildo_tiers_portrait_meta']"
+                                            t-as="item"
+                                        >
+
+                                            <span class="ildo_tiers_meta_item">
+
+                                                <strong t-out="item['label']"/>:
+
+                                                <span t-out="item['value']"/>
+
+                                            </span>
+
+                                        </t>
+
+                                    </div>
+
+                                    <div
+                                        t-if="show_last_annotations and line.get('last_comment')"
+                                        class="ildo_tiers_comment"
+                                        t-out="line.get('last_comment')"
+                                    />
+
+                                </td>
+
+                                <td class="ildo_tiers_amount">
+                                    <span
+                                        t-out="line.get('ildo_tiers_portrait_amounts', {}).get('debit', '')"
+                                    />
+                                </td>
+
+                                <td class="ildo_tiers_amount">
+                                    <span
+                                        t-out="line.get('ildo_tiers_portrait_amounts', {}).get('credit', '')"
+                                    />
+                                </td>
+
+                                <td class="ildo_tiers_amount">
+                                    <span
+                                        t-out="line.get('ildo_tiers_portrait_amounts', {}).get('balance', '')"
+                                    />
+                                </td>
+
+                            </tr>
+
+                        </t>
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        </xpath>
+
+    </template>
+
+</odoo>

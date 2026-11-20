@@ -14,8 +14,12 @@
             "Custom_layouts_models_ILDO_OIL/static/src/js/general_ledger_search.js",
             "Custom_layouts_models_ILDO_OIL/static/src/js/trial_balance_search_reload.js",
         ],
+        "account_reports.assets_pdf_export": [
+            "Custom_layouts_models_ILDO_OIL/static/src/scss/partner_ledger_portrait.scss",
+        ],
     },
     "data": [
+        "views/partner_ledger_portrait_pdf.xml",
         'security/ir.model.access.csv',
         'data/paperformat_no_header.xml',
         'data/ildo_invoice_sequences.xml',
