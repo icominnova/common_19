@@ -12,6 +12,7 @@
     "assets": {
         "web.assets_backend": [
             "Custom_layouts_models_ILDO_OIL/static/src/js/general_ledger_search.js",
+            "Custom_layouts_models_ILDO_OIL/static/src/js/trial_balance_search_reload.js",
         ],
     },
     "data": [
