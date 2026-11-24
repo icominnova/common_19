@@ -19,3 +19,4 @@ from . import account_vendor_piece
 from . import payment_auto_reconcile_wizard
 from . import account_bank_statement_auto
 from . import payment_auto_reconcile_execution
+from . import general_ledger_initial_column

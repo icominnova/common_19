@@ -8,11 +8,27 @@ patch(AccountReportSearchBar.prototype, {
         const inputText = this.searchText.el.value.trim();
         const query = inputText.toLowerCase();
 
+        const previousSearch = String(
+            this.controller.cachedFilterOptions?.filter_search_bar ??
+            this.controller.options?.filter_search_bar ??
+            ""
+        ).trim();
+
+        const requiresInitial = (value) =>
+            /^[45]\d*$/.test(String(value || "").trim());
+
+        const reloadColumns =
+            requiresInitial(previousSearch) !==
+            requiresInitial(inputText);
+
         await this.controller.reportLoadingPromise;
 
         // Appliquer ce comportement uniquement au Grand livre général.
-        const isGeneralLedger = this.controller.options?.report_id
-            === this.controller.actionReportId;
+        const isGeneralLedger = Number(
+            this.controller.options?.report_id ??
+            this.controller.cachedFilterOptions?.report_id ??
+            this.controller.actionReportId
+        ) === 12;
 
         // On conserve le comportement standard ailleurs.
         if (!isGeneralLedger) {
@@ -21,7 +37,7 @@ patch(AccountReportSearchBar.prototype, {
 
         if (!query) {
             delete this.controller.lines_searched;
-            await this.controller.deleteOption("filter_search_bar");
+            await this.controller.deleteOption("filter_search_bar", reloadColumns);
             return;
         }
 
@@ -45,6 +61,6 @@ patch(AccountReportSearchBar.prototype, {
         }
 
         this.controller.lines_searched = matchedIds;
-        await this.controller.updateOption("filter_search_bar", inputText);
+        await this.controller.updateOption("filter_search_bar", inputText, reloadColumns);
     },
 });

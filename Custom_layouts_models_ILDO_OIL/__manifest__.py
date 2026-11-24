@@ -69,6 +69,7 @@
         "views/account_invoice_piece_views.xml",
         "views/account_vendor_piece_views.xml",
         'data/report_layouts.xml',
+        "views/general_ledger_initial_balance.xml",
     ],
     "installable": True,
     "application": False,

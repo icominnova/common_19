@@ -92,12 +92,12 @@ class IldoGeneralLedgerFilter(models.AbstractModel):
 
         # Ne pas toucher aux autres recherches.
         if not applies:
-            return result
+            return self._ildo_with_initial_balance(result, current_groupby, applies)
 
         # Ne pas modifier les lignes des ecritures
         # ni la construction du solde initial.
         if current_groupby not in (None, "account_id"):
-            return result
+            return self._ildo_with_initial_balance(result, current_groupby, applies)
 
         # Second calcul : mouvements de la periode.
         period_options = dict(options)
@@ -134,7 +134,7 @@ class IldoGeneralLedgerFilter(models.AbstractModel):
                     field,
                     0.0,
                 )
-            return result
+            return self._ildo_with_initial_balance(result, current_groupby, applies)
 
         # TOTAUX PAR COMPTE :
         # conserver tous les comptes du premier calcul,
@@ -152,5 +152,60 @@ class IldoGeneralLedgerFilter(models.AbstractModel):
                     field,
                     0.0,
                 )
+
+        return self._ildo_with_initial_balance(result, current_groupby, applies)
+
+
+    def _ildo_with_initial_balance(
+        self,
+        result,
+        current_groupby,
+        active,
+    ):
+        """
+        Calculer le solde initial des comptes 4 et 5.
+
+        Solde initial = Solde final
+                        - Debit periode
+                        + Credit periode.
+
+        Aucun mouvement comptable n'est modifie.
+        """
+
+        def opening_balance(values):
+            balance = values.get("balance") or 0.0
+            debit = values.get("debit") or 0.0
+            credit = values.get("credit") or 0.0
+
+            return balance - debit + credit
+
+        if current_groupby is None:
+
+            result["ildo_initial_balance"] = (
+                opening_balance(result)
+                if active
+                else None
+            )
+
+            return result
+
+        for grouping_key, values in result:
+
+            initial = None
+
+            if active:
+
+                if current_groupby == "account_id":
+                    initial = opening_balance(values)
+
+                elif (
+                    current_groupby == "id_with_accumulated_balance"
+                    and str(grouping_key).startswith(
+                        "balance_line_"
+                    )
+                ):
+                    initial = values.get("balance")
+
+            values["ildo_initial_balance"] = initial
 
         return result
