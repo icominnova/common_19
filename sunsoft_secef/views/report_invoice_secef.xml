@@ -1,0 +1,865 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Bloc SECeF réutilisable. -->
+    <template id="secef_certification_block">
+        <div
+            t-if="o.secef_state == 'certified'"
+            style="width:100%; margin-top:12px; padding-top:7px; border-top:1px solid #777; page-break-inside:avoid; font-size:10px;"
+        >
+
+            <!-- DUPLICATA -->
+            <div
+                t-if="o.env.context.get('secef_duplicate')"
+                style="
+                    margin-bottom:8px;
+                    padding:6px;
+                    border:2px solid #000;
+                    text-align:center;
+                    font-size:14px;
+                    font-weight:bold;
+                    letter-spacing:1px;
+                "
+            >
+                DUPLICATA
+            </div>
+
+            <!-- Ligne titre / QR -->
+            <div style="width:100%; margin-bottom:5px; overflow:hidden;">
+                <div style="float:left; width:74%; font-size:11px; font-weight:bold;">
+
+                    <t
+                        t-if="
+                            o.move_type == 'out_refund'
+                            and o.secef_effective_sale_type == 'export'
+                        "
+                    >
+                        FACTURE D’AVOIR À L’EXPORTATION ÉLECTRONIQUE CERTIFIÉE - SECeF
+                    </t>
+
+                    <t t-elif="o.move_type == 'out_refund'">
+                        FACTURE D’AVOIR ÉLECTRONIQUE CERTIFIÉE - SECeF
+                    </t>
+
+                    <t
+                        t-elif="
+                            o._is_downpayment()
+                            and o.secef_effective_sale_type == 'export'
+                        "
+                    >
+                        FACTURE D’ACOMPTE À L’EXPORTATION ÉLECTRONIQUE CERTIFIÉE - SECeF
+                    </t>
+
+                    <t t-elif="o._is_downpayment()">
+                        FACTURE D’ACOMPTE ÉLECTRONIQUE CERTIFIÉE - SECeF
+                    </t>
+
+                    <t t-elif="o.secef_effective_sale_type == 'export'">
+                        FACTURE D’EXPORTATION ÉLECTRONIQUE CERTIFIÉE - SECeF
+                    </t>
+
+                    <t t-else="">
+                        FACTURE ÉLECTRONIQUE CERTIFIÉE - SECeF
+                    </t>
+
+                </div>
+
+                <div
+                    style="float:right; width:26%; text-align:center; font-size:10px; font-weight:bold;"
+                >
+                    QR
+                </div>
+            </div>
+
+            <!-- ==================================================
+                 INFORMATIONS ACHETEUR
+                 ================================================== -->
+
+            <t
+                t-set="secef_customer"
+                t-value="o.partner_id.commercial_partner_id"
+            />
+
+            <div
+                t-if="secef_customer"
+                style="
+                    margin-top:6px;
+                    margin-bottom:8px;
+                    padding:6px 0;
+                    border-top:1px solid #ddd;
+                    border-bottom:1px solid #ddd;
+                    font-size:10px;
+                "
+            >
+                <div style="font-weight:bold; margin-bottom:4px;">
+                    Informations de l’acheteur
+                </div>
+
+                <div
+                    t-if="secef_customer.secef_customer_type"
+                    style="padding:2px 0;"
+                >
+                    <span
+                        style="display:inline-block; width:31%; font-weight:bold;"
+                    >
+                        Type de l’acheteur
+                    </span>
+                    <span>:
+                        <span
+                            t-field="secef_customer.secef_customer_type"
+                        />
+                    </span>
+                </div>
+
+                <div
+                    t-if="secef_customer.vat"
+                    style="padding:2px 0;"
+                >
+                    <span
+                        style="display:inline-block; width:31%; font-weight:bold;"
+                    >
+                        IFU de l’acheteur
+                    </span>
+                    <span>:
+                        <span t-field="secef_customer.vat"/>
+                    </span>
+                </div>
+
+                <div
+                    t-if="secef_customer.name"
+                    style="padding:2px 0;"
+                >
+                    <span
+                        style="display:inline-block; width:31%; font-weight:bold;"
+                    >
+                        Nom de l’acheteur
+                    </span>
+                    <span>:
+                        <span t-field="secef_customer.name"/>
+                    </span>
+                </div>
+
+                <div
+                    t-if="secef_customer.company_registry"
+                    style="padding:2px 0;"
+                >
+                    <span
+                        style="display:inline-block; width:31%; font-weight:bold;"
+                    >
+                        RCCM
+                    </span>
+                    <span>:
+                        <span
+                            t-field="secef_customer.company_registry"
+                        />
+                    </span>
+                </div>
+
+                <div
+                    t-if="
+                        secef_customer.street
+                        or secef_customer.street2
+                        or secef_customer.city
+                    "
+                    style="padding:2px 0;"
+                >
+                    <span
+                        style="display:inline-block; width:31%; font-weight:bold;"
+                    >
+                        Adresse
+                    </span>
+
+                    <span>:
+                        <t t-if="secef_customer.street">
+                            <span t-field="secef_customer.street"/>
+                        </t>
+
+                        <t t-if="secef_customer.street2">
+                            <span> </span>
+                            <span t-field="secef_customer.street2"/>
+                        </t>
+
+                        <t t-if="secef_customer.city">
+                            <span> </span>
+                            <span t-field="secef_customer.city"/>
+                        </t>
+                    </span>
+                </div>
+
+                <div
+                    t-if="
+                        secef_customer.phone
+                        or (secef_customer['mobile'] if 'mobile' in secef_customer._fields else False)
+                    "
+                    style="padding:2px 0;"
+                >
+                    <span
+                        style="display:inline-block; width:31%; font-weight:bold;"
+                    >
+                        Contact
+                    </span>
+                    <span>:
+                        <span
+                            t-out="
+                                secef_customer.phone
+                                or (secef_customer['mobile'] if 'mobile' in secef_customer._fields else False)
+                            "
+                        />
+                    </span>
+                </div>
+
+                <div
+                    t-if="secef_customer.email"
+                    style="padding:2px 0;"
+                >
+                    <span
+                        style="display:inline-block; width:31%; font-weight:bold;"
+                    >
+                        Email
+                    </span>
+                    <span>:
+                        <span t-field="secef_customer.email"/>
+                    </span>
+                </div>
+
+            </div>
+
+            <!-- ==================================================
+                 CORPS CERTIFICATION
+                 ================================================== -->
+
+            <div style="width:100%; overflow:hidden;">
+
+                <!-- Informations -->
+                <div style="float:left; width:74%;">
+
+                    <div style="padding:2px 0;">
+                        <span
+                            style="display:inline-block; width:31%; font-weight:bold;"
+                        >
+                            MID
+                        </span>
+                        <span>:
+                            <span t-field="o.secef_mid"/>
+                        </span>
+                    </div>
+
+                    <div style="padding:2px 0;">
+                        <span
+                            style="display:inline-block; width:31%; font-weight:bold;"
+                        >
+                            Signature
+                        </span>
+                        <span>:
+                            <span t-field="o.secef_signature"/>
+                        </span>
+                    </div>
+
+                    <div style="padding:2px 0;">
+                        <span
+                            style="display:inline-block; width:31%; font-weight:bold;"
+                        >
+                            Date certification
+                        </span>
+                        <span>:
+                            <span t-field="o.secef_datetime"/>
+                        </span>
+                    </div>
+
+                    <div style="padding:2px 0;">
+                        <span
+                            style="display:inline-block; width:31%; font-weight:bold;"
+                        >
+                            Compteur fiscal
+                        </span>
+                        <span>:
+                            <span t-field="o.secef_fiscal_counter"/>
+                        </span>
+                    </div>
+
+                    <div style="padding:2px 0;">
+                        <span
+                            style="display:inline-block; width:31%; font-weight:bold;"
+                        >
+                            Compteur total MCF
+                        </span>
+                        <span>:
+                            <span t-field="o.secef_total_counter"/>
+                        </span>
+                    </div>
+
+                    <div
+                        t-if="o.company_id.secef_sfe_id"
+                        style="padding:2px 0;"
+                    >
+                        <span
+                            style="display:inline-block; width:31%; font-weight:bold;"
+                        >
+                            ISF
+                        </span>
+                        <span>:
+                            <span
+                                t-field="o.company_id.secef_sfe_id"
+                            />
+                        </span>
+                    </div>
+
+                    <div
+                        t-if="o.company_id.secef_tax_regime"
+                        style="padding:2px 0;"
+                    >
+                        <span
+                            style="display:inline-block; width:31%; font-weight:bold;"
+                        >
+                            Régime d'imposition
+                        </span>
+                        <span>:
+                            <span
+                                t-field="o.company_id.secef_tax_regime"
+                            />
+                        </span>
+                    </div>
+
+                    <div
+                        t-if="o.company_id.secef_tax_office"
+                        style="padding:2px 0;"
+                    >
+                        <span
+                            style="display:inline-block; width:31%; font-weight:bold;"
+                        >
+                            Service des impôts
+                        </span>
+                        <span>:
+                            <span
+                                t-field="o.company_id.secef_tax_office"
+                            />
+                        </span>
+                    </div>
+
+                    <div
+                        t-if="o.partner_bank_id"
+                        style="padding:2px 0;"
+                    >
+                        <span
+                            style="display:inline-block; width:31%; font-weight:bold;"
+                        >
+                            Banque
+                        </span>
+                        <span>:
+                            <span
+                                t-out="
+                                    o.partner_bank_id.bank_id.name
+                                    or ''
+                                "
+                            />
+                        </span>
+                    </div>
+
+                    <div
+                        t-if="o.partner_bank_id"
+                        style="padding:2px 0;"
+                    >
+                        <span
+                            style="display:inline-block; width:31%; font-weight:bold;"
+                        >
+                            Référence bancaire
+                        </span>
+                        <span>:
+                            <span
+                                t-field="o.partner_bank_id.acc_number"
+                            />
+                        </span>
+                    </div>
+
+                    <div
+                        t-if="o.partner_bank_id.bank_id.bic"
+                        style="padding:2px 0;"
+                    >
+                        <span
+                            style="display:inline-block; width:31%; font-weight:bold;"
+                        >
+                            BIC / SWIFT
+                        </span>
+                        <span>:
+                            <span
+                                t-field="o.partner_bank_id.bank_id.bic"
+                            />
+                        </span>
+                    </div>
+
+                    <!-- Commentaires SECeF -->
+                    <div
+                        t-if="
+                            o.secef_comment_a
+                            or o.secef_comment_b
+                            or o.secef_comment_c
+                            or o.secef_comment_d
+                            or o.secef_comment_e
+                            or o.secef_comment_f
+                            or o.secef_comment_g
+                            or o.secef_comment_h
+                        "
+                        style="
+                            margin-top:6px;
+                            padding-top:4px;
+                            border-top:1px solid #ddd;
+                        "
+                    >
+                        <div
+                            style="font-weight:bold; margin-bottom:3px;"
+                        >
+                            Commentaires SECeF
+                        </div>
+
+                        <div t-if="o.secef_comment_a">
+                            <strong>
+                                <span
+                                    t-out="
+                                        o.secef_comment_a_label
+                                        or 'A'
+                                    "
+                                /> :
+                            </strong>
+                            <span t-field="o.secef_comment_a"/>
+                        </div>
+
+                        <div t-if="o.secef_comment_b">
+                            <strong>
+                                <span
+                                    t-out="
+                                        o.secef_comment_b_label
+                                        or 'B'
+                                    "
+                                /> :
+                            </strong>
+                            <span t-field="o.secef_comment_b"/>
+                        </div>
+
+                        <div t-if="o.secef_comment_c">
+                            <strong>
+                                <span
+                                    t-out="
+                                        o.secef_comment_c_label
+                                        or 'C'
+                                    "
+                                /> :
+                            </strong>
+                            <span t-field="o.secef_comment_c"/>
+                        </div>
+
+                        <div t-if="o.secef_comment_d">
+                            <strong>
+                                <span
+                                    t-out="
+                                        o.secef_comment_d_label
+                                        or 'D'
+                                    "
+                                /> :
+                            </strong>
+                            <span t-field="o.secef_comment_d"/>
+                        </div>
+
+                        <div t-if="o.secef_comment_e">
+                            <strong>
+                                <span
+                                    t-out="
+                                        o.secef_comment_e_label
+                                        or 'E'
+                                    "
+                                /> :
+                            </strong>
+                            <span t-field="o.secef_comment_e"/>
+                        </div>
+
+                        <div t-if="o.secef_comment_f">
+                            <strong>
+                                <span
+                                    t-out="
+                                        o.secef_comment_f_label
+                                        or 'F'
+                                    "
+                                /> :
+                            </strong>
+                            <span t-field="o.secef_comment_f"/>
+                        </div>
+
+                        <div t-if="o.secef_comment_g">
+                            <strong>
+                                <span
+                                    t-out="
+                                        o.secef_comment_g_label
+                                        or 'G'
+                                    "
+                                /> :
+                            </strong>
+                            <span t-field="o.secef_comment_g"/>
+                        </div>
+
+                        <div t-if="o.secef_comment_h">
+                            <strong>
+                                <span
+                                    t-out="
+                                        o.secef_comment_h_label
+                                        or 'H'
+                                    "
+                                /> :
+                            </strong>
+                            <span t-field="o.secef_comment_h"/>
+                        </div>
+
+                    </div>
+
+                    <div
+                        t-if="
+                            o.secef_effective_sale_type
+                            == 'export'
+                        "
+                        style="padding:2px 0;"
+                    >
+                        <span
+                            style="display:inline-block; width:31%; font-weight:bold;"
+                        >
+                            Type de vente
+                        </span>
+                        <span>: EXPORTATION</span>
+                    </div>
+
+                    <div
+                        t-if="
+                            o.move_type == 'out_refund'
+                            and o.secef_refund_reason
+                        "
+                        style="padding:2px 0;"
+                    >
+                        <span
+                            style="display:inline-block; width:31%; font-weight:bold;"
+                        >
+                            Nature de l'avoir
+                        </span>
+                        <span>:
+                            <span
+                                t-field="o.secef_refund_reason"
+                            />
+                        </span>
+                    </div>
+
+                    <div
+                        t-if="
+                            o.move_type == 'out_invoice'
+                            and o.secef_psvb_group
+                        "
+                        style="padding:2px 0;"
+                    >
+                        <span
+                            style="display:inline-block; width:31%; font-weight:bold;"
+                        >
+                            PSVB
+                        </span>
+
+                        <span>
+                            :
+                            Groupe
+                            <span
+                                t-out="o.secef_psvb_group"
+                            />
+                            (
+                            <span
+                                t-out="'%g' % o.secef_psvb_rate"
+                            />
+                            %)
+                        </span>
+                    </div>
+
+                    <div
+                        t-if="
+                            o.move_type == 'out_invoice'
+                            and o.secef_psvb_group
+                        "
+                        style="padding:2px 0;"
+                    >
+                        <span
+                            style="display:inline-block; width:31%; font-weight:bold;"
+                        >
+                            Montant PSVB
+                        </span>
+
+                        <span>:
+                            <span
+                                t-field="o.secef_psvb_amount_display"
+                                t-options="{
+                                    'widget': 'float',
+                                    'precision': 2
+                                }"
+                            />
+                            CFA
+                        </span>
+                    </div>
+
+                    <div
+                        t-if="
+                            o.move_type == 'out_invoice'
+                            and o.secef_psvb_group
+                        "
+                        style="
+                            padding:2px 0;
+                            font-weight:bold;
+                        "
+                    >
+                        <span
+                            style="display:inline-block; width:31%;"
+                        >
+                            Total à payer
+                        </span>
+
+                        <span>:
+                            <span
+                                t-field="o.secef_total_with_psvb_display"
+                                t-options="{
+                                    'widget': 'float',
+                                    'precision': 2
+                                }"
+                            />
+                            CFA
+                        </span>
+                    </div>
+
+                </div>
+
+                <!-- QR unique -->
+                <div
+                    t-if="o.secef_qr_data"
+                    style="
+                        float:right;
+                        width:26%;
+                        text-align:center;
+                    "
+                >
+                    <span
+                        t-field="o.secef_qr_data"
+                        t-options="{
+                            'widget': 'barcode',
+                            'symbology': 'QR',
+                            'width': 180,
+                            'height': 180,
+                            'quiet': 1,
+                            'img_style': 'width:90px;height:90px;'
+                        }"
+                    />
+                </div>
+
+            </div>
+
+            <div style="clear:both;"></div>
+
+        </div>
+    </template>
+
+
+    <!-- =========================================================
+         RÉCAPITULATIF FISCAL
+         ========================================================= -->
+
+    <template id="secef_tax_summary_block">
+
+        <div
+            t-if="o.secef_state == 'certified'"
+            style="
+                width:100%;
+                margin-top:10px;
+                page-break-inside:avoid;
+                font-size:10px;
+            "
+        >
+
+            <t
+                t-set="secef_tax_summary"
+                t-value="o._get_secef_tax_summary()"
+            />
+
+            <div t-if="secef_tax_summary">
+
+                <div
+                    style="
+                        font-weight:bold;
+                        margin-bottom:4px;
+                    "
+                >
+                    RÉCAPITULATIF FISCAL SECeF
+                </div>
+
+                <t
+                    t-foreach="secef_tax_summary"
+                    t-as="tax_group"
+                >
+
+                    <div
+                        t-if="tax_group['is_exempt']"
+                        style="padding:1px 0;"
+                    >
+                        <span>
+                            Total EXONÉRÉS [
+                            <t t-out="tax_group['group']"/>
+                            ]
+                        </span>
+
+                        <span
+                            style="float:right;"
+                            t-out="tax_group['base']"
+                            t-options="{
+                                'widget': 'monetary',
+                                'display_currency': o.currency_id
+                            }"
+                        />
+                    </div>
+
+                    <t t-else="">
+
+                        <div style="padding:1px 0;">
+                            <span>
+                                Total H.T. [
+                                <t t-out="tax_group['group']"/>
+                                ]
+                                <t t-out="tax_group['rate']"/>
+                                %
+                            </span>
+
+                            <span
+                                style="float:right;"
+                                t-out="tax_group['base']"
+                                t-options="{
+                                    'widget': 'monetary',
+                                    'display_currency': o.currency_id
+                                }"
+                            />
+                        </div>
+
+                        <div style="padding:1px 0;">
+                            <span>
+                                Total TVA [
+                                <t t-out="tax_group['group']"/>
+                                ]
+                                <t t-out="tax_group['rate']"/>
+                                %
+                            </span>
+
+                            <span
+                                style="float:right;"
+                                t-out="tax_group['tax']"
+                                t-options="{
+                                    'widget': 'monetary',
+                                    'display_currency': o.currency_id
+                                }"
+                            />
+                        </div>
+
+                    </t>
+
+                </t>
+
+                <div style="clear:both;"></div>
+
+            </div>
+
+            <t
+                t-set="secef_total_words_amount"
+                t-value="
+                    o.secef_total_with_psvb_display
+                    if (
+                        o.move_type == 'out_invoice'
+                        and o.secef_psvb_group
+                    )
+                    else o.amount_total
+                "
+            />
+
+            <div
+                style="
+                    margin-top:6px;
+                    padding-top:4px;
+                    border-top:1px solid #ddd;
+                "
+            >
+                <span style="font-weight:bold;">
+                    Total en lettres :
+                </span>
+
+                <span
+                    t-out="
+                        o.currency_id.amount_to_text(
+                            secef_total_words_amount
+                        )
+                    "
+                />
+            </div>
+
+        </div>
+
+    </template>
+
+
+    <!-- =========================================================
+         HÉRITAGE RAPPORT FACTURE ODOO
+         ========================================================= -->
+
+    <template
+        id="report_invoice_document_secef"
+        inherit_id="account.report_invoice_document"
+    >
+
+        <!-- Groupe de taxation SECeF après la désignation du produit -->
+        <xpath
+            expr="//td[@name='account_invoice_line_name'] | //table[contains(concat(' ', normalize-space(@class), ' '), ' custom-invoice-table ')]//td[contains(concat(' ', normalize-space(@class), ' '), ' desc-cell ')]"
+            position="inside"
+        >
+            <t t-if="o.secef_state == 'certified'">
+
+                <t
+                    t-set="secef_tax"
+                    t-value="
+                        line.tax_ids.filtered(
+                            'secef_tax_group'
+                        )[:1]
+                    "
+                />
+
+                <span
+                    t-if="secef_tax"
+                    style="
+                        font-weight:bold;
+                        white-space:nowrap;
+                    "
+                >
+                    (
+                    <t
+                        t-out="
+                            'A-EX'
+                            if (
+                                secef_tax.secef_tax_group == 'A'
+                                and secef_tax.amount == 0
+                            )
+                            else secef_tax.secef_tax_group
+                        "
+                    />
+                    )
+                </span>
+
+            </t>
+        </xpath>
+
+        <!-- Bloc de certification SECeF -->
+        <xpath
+            expr="//div[@id='right-elements']/parent::div"
+            position="after"
+        >
+            <t
+                t-call="sunsoft_secef.secef_tax_summary_block"
+            />
+
+            <t
+                t-call="sunsoft_secef.secef_certification_block"
+            />
+        </xpath>
+
+    </template>
+
+</odoo>

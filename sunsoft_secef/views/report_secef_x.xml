@@ -1,0 +1,743 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record
+        id="action_report_secef_x"
+        model="ir.actions.report"
+    >
+        <field name="name">
+            Rapport X SECeF
+        </field>
+
+        <field name="model">sunsoft.secef.report</field>
+
+        <field name="report_type">qweb-pdf</field>
+
+        <field name="report_name">sunsoft_secef.report_secef_x_document</field>
+
+        <field name="report_file">sunsoft_secef.report_secef_x_document</field>
+
+        <field name="print_report_name">
+            'Rapport_X_SECeF_%s' % object.name.replace('/', '_')
+        </field>
+    </record>
+
+
+
+
+    <record
+        id="action_report_secef_z"
+        model="ir.actions.report"
+    >
+        <field name="name">
+            Rapport Z SECeF
+        </field>
+
+        <field name="model">sunsoft.secef.report</field>
+
+        <field name="report_type">qweb-pdf</field>
+
+        <field name="report_name">sunsoft_secef.report_secef_x_document</field>
+
+        <field name="report_file">sunsoft_secef.report_secef_x_document</field>
+
+        <field name="print_report_name">
+            'Rapport_Z_SECeF_%s' % object.name.replace('/', '_')
+        </field>
+    </record>
+
+
+    <template
+        id="report_secef_x_document"
+    >
+        <t t-call="web.html_container">
+
+            <t
+                t-foreach="docs"
+                t-as="o"
+            >
+                <t t-call="web.external_layout">
+
+                    <div class="page">
+
+                        <t
+                            t-set="snapshot"
+                            t-value="o.snapshot_json or {}"
+                        />
+
+                        <t
+                            t-set="identity"
+                            t-value="
+                                snapshot.get(
+                                    'identity',
+                                    {}
+                                )
+                            "
+                        />
+
+                        <t
+                            t-set="period"
+                            t-value="
+                                snapshot.get(
+                                    'period',
+                                    {}
+                                )
+                            "
+                        />
+
+                        <t
+                            t-set="summary"
+                            t-value="
+                                snapshot.get(
+                                    'summary',
+                                    {}
+                                )
+                            "
+                        />
+
+                        <h2 class="text-center">
+                            <t
+                                t-if="
+                                    o.report_type == 'z'
+                                "
+                            >
+                                RAPPORT Z SECeF
+                            </t>
+
+                            <t t-else="">
+                                RAPPORT X SECeF
+                            </t>
+                        </h2>
+
+                        <div class="text-center mb-3">
+                            <strong>
+                                <t
+                                    t-if="
+                                        o.report_type == 'z'
+                                    "
+                                >
+                                    Z-RAPPORT
+                                </t>
+
+                                <t
+                                    t-elif="
+                                        o.report_type ==
+                                        'x_daily'
+                                    "
+                                >
+                                    X QUOTIDIEN
+                                </t>
+
+                                <t t-else="">
+                                    X PERIODIQUE
+                                </t>
+                            </strong>
+                        </div>
+
+
+                        <table
+                            class="
+                                table
+                                table-sm
+                                table-bordered
+                            "
+                        >
+                            <tbody>
+
+                                <tr>
+                                    <th>
+                                        Reference
+                                    </th>
+
+                                    <td>
+                                        <span
+                                            t-field="o.name"
+                                        />
+                                    </td>
+
+                                    <th>
+                                        Date de generation
+                                    </th>
+
+                                    <td>
+                                        <span
+                                            t-field="o.generated_at"
+                                        />
+                                    </td>
+                                </tr>
+
+                                <tr>
+                                    <th>
+                                        Nom commercial
+                                    </th>
+
+                                    <td>
+                                        <t
+                                            t-out="
+                                                identity.get(
+                                                    'commercial_name',
+                                                    ''
+                                                )
+                                            "
+                                        />
+                                    </td>
+
+                                    <th>
+                                        IFU
+                                    </th>
+
+                                    <td>
+                                        <t
+                                            t-out="
+                                                identity.get(
+                                                    'ifu',
+                                                    ''
+                                                )
+                                            "
+                                        />
+                                    </td>
+                                </tr>
+
+                                <tr>
+                                    <th>
+                                        ISF
+                                    </th>
+
+                                    <td>
+                                        <t
+                                            t-out="
+                                                identity.get(
+                                                    'isf',
+                                                    ''
+                                                )
+                                            "
+                                        />
+                                    </td>
+
+                                    <th>
+                                        Periode
+                                    </th>
+
+                                    <td>
+                                        <t
+                                            t-out="
+                                                period.get(
+                                                    'start',
+                                                    ''
+                                                )
+                                            "
+                                        />
+                                        -
+                                        <t
+                                            t-out="
+                                                period.get(
+                                                    'end',
+                                                    ''
+                                                )
+                                            "
+                                        />
+                                    </td>
+                                </tr>
+
+                            </tbody>
+                        </table>
+
+
+                        <h4>
+                            Resume par type de facture
+                        </h4>
+
+                        <table
+                            class="
+                                table
+                                table-sm
+                                table-bordered
+                            "
+                        >
+                            <thead>
+                                <tr>
+                                    <th>Type</th>
+                                    <th class="text-end">
+                                        Nombre
+                                    </th>
+                                    <th class="text-end">
+                                        Total
+                                    </th>
+                                    <th class="text-end">
+                                        Taxable
+                                    </th>
+                                    <th class="text-end">
+                                        Impot
+                                    </th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+
+                                <t
+                                    t-foreach="
+                                        (summary.get('invoice_types', {})).items()
+                                    "
+                                    t-as="invoice_type_row"
+                                >
+
+                                    <tr>
+                                        <td>
+                                            <t
+                                                t-out="
+                                                    invoice_type_row[0]
+                                                "
+                                            />
+                                        </td>
+
+                                        <td class="text-end">
+                                            <t
+                                                t-out="
+                                                    invoice_type_row[
+                                                        1
+                                                    ].get(
+                                                        'invoice_count',
+                                                        0
+                                                    )
+                                                "
+                                            />
+                                        </td>
+
+                                        <td class="text-end">
+                                            <t
+                                                t-out="
+                                                    invoice_type_row[
+                                                        1
+                                                    ].get(
+                                                        'total',
+                                                        '0.00'
+                                                    )
+                                                "
+                                            />
+                                        </td>
+
+                                        <td class="text-end">
+                                            <t
+                                                t-out="
+                                                    invoice_type_row[
+                                                        1
+                                                    ].get(
+                                                        'taxable',
+                                                        '0.00'
+                                                    )
+                                                "
+                                            />
+                                        </td>
+
+                                        <td class="text-end">
+                                            <t
+                                                t-out="
+                                                    invoice_type_row[
+                                                        1
+                                                    ].get(
+                                                        'tax',
+                                                        '0.00'
+                                                    )
+                                                "
+                                            />
+                                        </td>
+                                    </tr>
+
+                                    <t
+                                        t-foreach="
+                                            (invoice_type_row[1].get('tax_groups', {})).items()
+                                        "
+                                        t-as="tax_row"
+                                    >
+
+                                        <tr>
+                                            <td
+                                                colspan="2"
+                                                class="ps-4"
+                                            >
+                                                Groupe fiscal
+                                                <t
+                                                    t-out="
+                                                        tax_row[0]
+                                                    "
+                                                />
+                                            </td>
+
+                                            <td class="text-end">
+                                                <t
+                                                    t-out="
+                                                        tax_row[
+                                                            1
+                                                        ].get(
+                                                            'total',
+                                                            '0.00'
+                                                        )
+                                                    "
+                                                />
+                                            </td>
+
+                                            <td class="text-end">
+                                                <t
+                                                    t-out="
+                                                        tax_row[
+                                                            1
+                                                        ].get(
+                                                            'base',
+                                                            '0.00'
+                                                        )
+                                                    "
+                                                />
+                                            </td>
+
+                                            <td class="text-end">
+                                                <t
+                                                    t-out="
+                                                        tax_row[
+                                                            1
+                                                        ].get(
+                                                            'tax',
+                                                            '0.00'
+                                                        )
+                                                    "
+                                                />
+                                            </td>
+                                        </tr>
+
+                                    </t>
+
+                                </t>
+
+                            </tbody>
+                        </table>
+
+
+                        <h4>
+                            Paiements par mode
+                        </h4>
+
+                        <table
+                            class="
+                                table
+                                table-sm
+                                table-bordered
+                            "
+                        >
+                            <thead>
+                                <tr>
+                                    <th>Mode</th>
+                                    <th class="text-end">
+                                        Montant
+                                    </th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+
+                                <t
+                                    t-foreach="
+                                        (summary.get('payments', {})).items()
+                                    "
+                                    t-as="payment_row"
+                                >
+                                    <tr>
+                                        <td>
+                                            <t
+                                                t-out="
+                                                    payment_row[0]
+                                                "
+                                            />
+                                        </td>
+
+                                        <td class="text-end">
+                                            <t
+                                                t-out="
+                                                    payment_row[1]
+                                                "
+                                            />
+                                        </td>
+                                    </tr>
+                                </t>
+
+                            </tbody>
+                        </table>
+
+
+                        <h4>
+                            Reductions commerciales
+                        </h4>
+
+                        <table
+                            class="
+                                table
+                                table-sm
+                                table-bordered
+                            "
+                        >
+                            <thead>
+                                <tr>
+                                    <th>Facture</th>
+                                    <th>Article</th>
+                                    <th class="text-end">
+                                        Taux
+                                    </th>
+                                    <th class="text-end">
+                                        Montant
+                                    </th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+
+                                <t
+                                    t-foreach="
+                                        summary.get(
+                                            'commercial_discounts',
+                                            []
+                                        )
+                                    "
+                                    t-as="discount_row"
+                                >
+                                    <tr>
+                                        <td>
+                                            <t
+                                                t-out="
+                                                    discount_row.get(
+                                                        'invoice_number',
+                                                        ''
+                                                    )
+                                                "
+                                            />
+                                        </td>
+
+                                        <td>
+                                            <t
+                                                t-out="
+                                                    discount_row.get(
+                                                        'product_name',
+                                                        ''
+                                                    )
+                                                "
+                                            />
+                                        </td>
+
+                                        <td class="text-end">
+                                            <t
+                                                t-out="
+                                                    discount_row.get(
+                                                        'rate',
+                                                        '0'
+                                                    )
+                                                "
+                                            />
+                                            %
+                                        </td>
+
+                                        <td class="text-end">
+                                            <t
+                                                t-out="
+                                                    discount_row.get(
+                                                        'amount',
+                                                        '0.00'
+                                                    )
+                                                "
+                                            />
+                                        </td>
+                                    </tr>
+                                </t>
+
+                            </tbody>
+                        </table>
+
+
+
+                        <h4>
+                            Autres reductions de vente
+                        </h4>
+
+                        <table
+                            class="
+                                table
+                                table-sm
+                                table-bordered
+                            "
+                        >
+                            <thead>
+                                <tr>
+                                    <th>Facture</th>
+                                    <th>Article</th>
+                                    <th>Description</th>
+                                    <th class="text-end">
+                                        Montant
+                                    </th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+
+                                <t
+                                    t-foreach="
+                                        summary.get(
+                                            'other_sales_reductions',
+                                            []
+                                        )
+                                    "
+                                    t-as="reduction_row"
+                                >
+                                    <tr>
+                                        <td>
+                                            <t
+                                                t-out="
+                                                    reduction_row.get(
+                                                        'invoice_number',
+                                                        ''
+                                                    )
+                                                "
+                                            />
+                                        </td>
+
+                                        <td>
+                                            <t
+                                                t-out="
+                                                    reduction_row.get(
+                                                        'product_code',
+                                                        ''
+                                                    )
+                                                "
+                                            />
+                                        </td>
+
+                                        <td>
+                                            <t
+                                                t-out="
+                                                    reduction_row.get(
+                                                        'description',
+                                                        ''
+                                                    )
+                                                "
+                                            />
+                                        </td>
+
+                                        <td class="text-end">
+                                            <t
+                                                t-out="
+                                                    reduction_row.get(
+                                                        'amount',
+                                                        '0.00'
+                                                    )
+                                                "
+                                            />
+                                        </td>
+                                    </tr>
+                                </t>
+
+                            </tbody>
+                        </table>
+
+
+                        <h4>
+                            Ventes incompletes
+                        </h4>
+
+                        <p>
+                            Nombre :
+                            <strong>
+                                <t
+                                    t-out="
+                                        summary.get(
+                                            'incomplete_sales_count',
+                                            0
+                                        )
+                                    "
+                                />
+                            </strong>
+                        </p>
+
+                        <table
+                            class="
+                                table
+                                table-sm
+                                table-bordered
+                            "
+                            t-if="
+                                snapshot.get(
+                                    'incomplete_sales'
+                                )
+                            "
+                        >
+                            <thead>
+                                <tr>
+                                    <th>Facture</th>
+                                    <th>Etat</th>
+                                    <th>Erreur</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+
+                                <t
+                                    t-foreach="
+                                        snapshot.get(
+                                            'incomplete_sales',
+                                            []
+                                        )
+                                    "
+                                    t-as="sale"
+                                >
+                                    <tr>
+                                        <td>
+                                            <t
+                                                t-out="
+                                                    sale.get(
+                                                        'invoice_number',
+                                                        ''
+                                                    )
+                                                "
+                                            />
+                                        </td>
+
+                                        <td>
+                                            <t
+                                                t-out="
+                                                    sale.get(
+                                                        'state',
+                                                        ''
+                                                    )
+                                                "
+                                            />
+                                        </td>
+
+                                        <td>
+                                            <t
+                                                t-out="
+                                                    sale.get(
+                                                        'error_message',
+                                                        ''
+                                                    )
+                                                "
+                                            />
+                                        </td>
+                                    </tr>
+                                </t>
+
+                            </tbody>
+                        </table>
+
+
+                        <div class="mt-4">
+                            <small>
+                                Rapport genere a partir
+                                des transactions fiscales
+                                SECeF conservees dans
+                                SunApp.
+                            </small>
+                        </div>
+
+                    </div>
+
+                </t>
+            </t>
+
+        </t>
+    </template>
+
+</odoo>

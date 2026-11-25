@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<odoo noupdate="1">
+
+    <record
+        id="ir_cron_secef_dispatch_outbox"
+        model="ir.cron"
+    >
+        <field name="name">SECeF - Envoi des demandes en attente</field>
+
+        <field
+            name="model_id"
+            ref="model_sunsoft_secef_transaction"
+        />
+
+        <field name="state">code</field>
+
+        <field name="code">model._cron_dispatch_secef_outbox()</field>
+
+        <field name="interval_number">1</field>
+
+        <field name="interval_type">minutes</field>
+
+        <field name="priority">4</field>
+
+        <field
+            name="active"
+            eval="True"
+        />
+    </record>
+
+
+    <record
+        id="ir_cron_secef_sync_transactions"
+        model="ir.cron"
+    >
+        <field name="name">SECeF - Synchronisation des certifications</field>
+
+        <field
+            name="model_id"
+            ref="model_sunsoft_secef_transaction"
+        />
+
+        <field name="state">code</field>
+
+        <field name="code">model._cron_sync_secef_transactions()</field>
+
+        <field name="interval_number">1</field>
+
+        <field name="interval_type">minutes</field>
+
+        <field name="priority">5</field>
+
+        <field
+            name="active"
+            eval="True"
+        />
+    </record>
+
+
+    <record
+        id="ir_cron_secef_odoo_heartbeat"
+        model="ir.cron"
+    >
+        <field name="name">SECeF - Heartbeat Odoo central</field>
+
+        <field
+            name="model_id"
+            ref="base.model_res_company"
+        />
+
+        <field name="state">code</field>
+
+        <field name="code">model._cron_secef_central_heartbeat()</field>
+
+        <field name="interval_number">1</field>
+
+        <field name="interval_type">minutes</field>
+
+        <field name="priority">6</field>
+
+        <field
+            name="active"
+            eval="True"
+        />
+    </record>
+
+</odoo>

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_tax_form_inherit_sunsoft_secef" model="ir.ui.view">
+        <field name="name">account.tax.form.sunsoft.secef</field>
+        <field name="model">account.tax</field>
+        <field name="inherit_id" ref="account.view_tax_form"/>
+
+        <field name="arch" type="xml">
+            <field name="tax_scope" position="after">
+                <field
+                    name="secef_tax_group"
+                    string="Groupe taxe SECeF"
+                />
+            </field>
+        </field>
+    </record>
+
+</odoo>

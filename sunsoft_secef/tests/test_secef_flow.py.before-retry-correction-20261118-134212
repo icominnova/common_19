@@ -1,0 +1,2197 @@
+import uuid
+from decimal import Decimal
+
+from psycopg2 import IntegrityError
+
+from odoo import Command, fields
+from odoo.exceptions import UserError
+from odoo.tests import Form, tagged
+from odoo.tests.common import TransactionCase
+
+from ..services.central_client import (
+    SecefCentralTransportError,
+)
+
+
+class FakeCentralClient:
+    """Double de test du serveur central SECeF."""
+
+    def __init__(
+        self,
+        *,
+        create_response=None,
+        get_response=None,
+        create_error=None,
+        get_error=None,
+    ):
+        self.create_response = create_response
+        self.get_response = get_response
+
+        self.create_error = create_error
+        self.get_error = get_error
+
+        self.create_calls = []
+        self.get_calls = []
+
+    def create_certification(
+        self,
+        *,
+        request_uid,
+        agent_uid,
+        invoice_number,
+        payload,
+        job_type="invoice.certify",
+    ):
+        self.create_calls.append({
+            "request_uid":
+                request_uid,
+            "agent_uid":
+                agent_uid,
+            "invoice_number":
+                invoice_number,
+            "payload":
+                payload,
+            "job_type":
+                job_type,
+        })
+
+        if self.create_error:
+            raise self.create_error
+
+        if self.create_response is None:
+            raise AssertionError(
+                "Aucune réponse create configurée."
+            )
+
+        return self.create_response
+
+    def get_certification(
+        self,
+        *,
+        request_uid,
+    ):
+        self.get_calls.append({
+            "request_uid":
+                request_uid,
+        })
+
+        if self.get_error:
+            raise self.get_error
+
+        if self.get_response is None:
+            raise AssertionError(
+                "Aucune réponse GET configurée."
+            )
+
+        return self.get_response
+
+
+@tagged(
+    "post_install",
+    "-at_install",
+)
+class TestSecefFlow(TransactionCase):
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+
+        cls.company = cls.env.company
+
+        cls.company.with_context(
+            no_vat_validation=True
+        ).write({
+            "secef_enabled":
+                True,
+
+            "secef_environment":
+                "test",
+
+            "secef_sfe_id":
+                "SUNAPPTEST",
+
+            "secef_central_url":
+                "https://secef.test.local",
+
+            "secef_central_api_token":
+                "ssecf_odoo_test_token",
+
+            "secef_http_timeout":
+                10.0,
+
+            "vat":
+                "00225673B",
+        })
+
+        cls.partner = (
+            cls.env[
+                "res.partner"
+            ].create({
+                "name":
+                    "Client SECeF Test",
+
+                "secef_customer_type":
+                    "PM",
+
+                "street":
+                    "Zone du Bois",
+
+                "city":
+                    "Ouagadougou",
+
+                "phone":
+                    "70000000",
+
+                "email":
+                    "client@example.test",
+            })
+        )
+
+        cls.tax_group = (
+            cls.env[
+                "account.tax.group"
+            ].create({
+                "name":
+                    "TVA SECeF AUTO TEST",
+
+                "company_id":
+                    cls.company.id,
+            })
+        )
+
+        cls.tax = (
+            cls.env[
+                "account.tax"
+            ].create({
+                "name":
+                    "TVA 18% SECeF AUTO TEST",
+
+                "amount":
+                    18.0,
+
+                "amount_type":
+                    "percent",
+
+                "type_tax_use":
+                    "sale",
+
+                "price_include":
+                    False,
+
+                "company_id":
+                    cls.company.id,
+
+                "tax_group_id":
+                    cls.tax_group.id,
+
+                "secef_tax_group":
+                    "B",
+            })
+        )
+
+        cls.product_template = (
+            cls.env[
+                "product.template"
+            ].create({
+                "name":
+                    "Produit SECeF Test",
+
+                "list_price":
+                    1000.0,
+
+                "secef_item_type":
+                    "LOCBIE",
+            })
+        )
+
+        cls.product = (
+            cls.product_template
+            .product_variant_id
+        )
+
+        cls.product.write({
+            "default_code":
+                "ART-SECEF-001",
+        })
+
+    def setUp(self):
+        super().setUp()
+
+        self.agent_uid = str(
+            uuid.uuid4()
+        )
+
+        self.agent_identifier = (
+            "AGENT-TEST-%s"
+            % uuid.uuid4()
+        )
+
+        self.company.write({
+            "secef_agent_uid":
+                self.agent_uid,
+
+            "secef_agent_identifier":
+                self.agent_identifier,
+
+            "secef_central_url":
+                "https://secef.test.local",
+
+            "secef_central_api_token":
+                "ssecf_odoo_test_token",
+
+            "secef_http_timeout":
+                10.0,
+        })
+
+    # =========================================================
+    # Helpers
+    # =========================================================
+
+    def _create_posted_invoice(
+        self,
+        quantity=2.0,
+        price_unit=1000.0,
+    ):
+        move_form = Form(
+            self.env[
+                "account.move"
+            ].with_context(
+                default_move_type="out_invoice"
+            )
+        )
+
+        move_form.partner_id = (
+            self.partner
+        )
+
+        move_form.invoice_date = (
+            fields.Date.today()
+        )
+
+        with (
+            move_form
+            .invoice_line_ids
+            .new()
+        ) as line:
+            line.product_id = (
+                self.product
+            )
+
+            line.quantity = quantity
+            line.price_unit = price_unit
+
+            line.tax_ids.clear()
+
+            line.tax_ids.add(
+                self.tax
+            )
+
+        move = move_form.save()
+
+        move.action_post()
+
+        return move
+
+    def _create_posted_downpayment_invoice(
+        self,
+        percentage=30.0,
+    ):
+        order = self.env[
+            "sale.order"
+        ].create({
+            "partner_id":
+                self.partner.id,
+
+            "order_line": [
+                Command.create({
+                    "product_id":
+                        self.product.id,
+
+                    "product_uom_qty":
+                        2.0,
+
+                    "price_unit":
+                        1000.0,
+
+                    "tax_ids":
+                        [
+                            Command.set(
+                                self.tax.ids
+                            )
+                        ],
+                }),
+            ],
+        })
+
+        order.action_confirm()
+
+        wizard = (
+            self.env[
+                "sale.advance.payment.inv"
+            ]
+            .with_context(
+                active_model="sale.order",
+                active_ids=order.ids,
+            )
+            .create({
+                "advance_payment_method":
+                    "percentage",
+
+                "amount":
+                    percentage,
+            })
+        )
+
+        action = wizard.create_invoices()
+
+        move = self.env[
+            "account.move"
+        ].browse(
+            action["res_id"]
+        )
+
+        move.invoice_date = (
+            fields.Date.today()
+        )
+
+        move.action_post()
+
+        return move, order
+
+    def _create_outbox(
+        self,
+        move,
+    ):
+        move.action_request_secef_certification()
+
+        transaction = (
+            move.secef_transaction_ids
+            .sorted(
+                key=lambda record:
+                    record.id
+            )[-1:]
+        )
+
+        self.assertTrue(
+            transaction
+        )
+
+        return transaction
+
+    def _central_response(
+        self,
+        move,
+        transaction,
+        *,
+        status="pending",
+        result=None,
+        error_message=None,
+        job_uid=None,
+    ):
+        return {
+            "request_uid":
+                transaction.request_uid,
+
+            "job_uid":
+                (
+                    job_uid
+                    or "JOB-%s"
+                    % transaction.request_uid
+                ),
+
+            "agent_uid":
+                transaction.agent_uid,
+
+            "invoice_number":
+                move.name,
+
+            "status":
+                status,
+
+            "result":
+                result,
+
+            "error_message":
+                error_message,
+        }
+
+    def _fiscal_result(
+        self,
+        move,
+    ):
+        certification_datetime = (
+            "20260918193000"
+        )
+
+        mid = "DT02200630-1"
+
+        ifu = "00225673B"
+
+        signature = (
+            "TESTAUTOMATIQUE001"
+        )
+
+        return {
+            "invoice_number":
+                move.name,
+
+            "mid":
+                mid,
+
+            "ifu":
+                ifu,
+
+            "signature":
+                signature,
+
+            "datetime":
+                certification_datetime,
+
+            "invoice_counter":
+                100,
+
+            "total_counter":
+                200,
+
+            "qr_data": (
+                "BFSECEF01;"
+                f"{mid};"
+                f"{signature};"
+                f"{ifu};"
+                f"{certification_datetime}"
+            ),
+        }
+
+    # =========================================================
+    # Payload Odoo -> Agent
+    # =========================================================
+
+    def test_prepare_payload_downpayment_ft(
+        self,
+    ):
+        move, _order = (
+            self._create_posted_downpayment_invoice(
+                percentage=30.0,
+            )
+        )
+
+        self.assertEqual(
+            move.move_type,
+            "out_invoice",
+        )
+
+        self.assertTrue(
+            move._is_downpayment()
+        )
+
+        payload = (
+            move._prepare_secef_payload()
+        )
+
+        self.assertEqual(
+            payload[
+                "invoice"
+            ][
+                "invoice_type"
+            ],
+            "FT",
+        )
+
+        self.assertEqual(
+            payload[
+                "invoice"
+            ][
+                "invoice_number"
+            ],
+            move.name,
+        )
+
+        self.assertNotIn(
+            "refund_reason",
+            payload["invoice"],
+        )
+
+        self.assertNotIn(
+            "reference_number",
+            payload["invoice"],
+        )
+
+    def test_prepare_payload_final_invoice_after_downpayment_fv(
+        self,
+    ):
+        downpayment_move, order = (
+            self._create_posted_downpayment_invoice(
+                percentage=30.0,
+            )
+        )
+
+        self.assertTrue(
+            downpayment_move._is_downpayment()
+        )
+
+        wizard = (
+            self.env[
+                "sale.advance.payment.inv"
+            ]
+            .with_context(
+                active_model="sale.order",
+                active_ids=order.ids,
+            )
+            .create({
+                "advance_payment_method":
+                    "delivered",
+
+                "deduct_down_payments":
+                    True,
+            })
+        )
+
+        action = wizard.create_invoices()
+
+        final_move = self.env[
+            "account.move"
+        ].browse(
+            action["res_id"]
+        )
+
+        final_move.invoice_date = (
+            fields.Date.today()
+        )
+
+        final_move.action_post()
+
+        self.assertFalse(
+            final_move._is_downpayment()
+        )
+
+        payload = (
+            final_move._prepare_secef_payload()
+        )
+
+        self.assertEqual(
+            payload[
+                "invoice"
+            ][
+                "invoice_type"
+            ],
+            "FV",
+        )
+
+        self.assertTrue(
+            payload["items"]
+        )
+
+        self.assertTrue(
+            all(
+                float(item["quantity"]) > 0
+                for item in payload["items"]
+            )
+        )
+
+        self.assertTrue(
+            all(
+                float(item["amount"]) > 0
+                for item in payload["items"]
+            )
+        )
+
+        self.assertFalse(
+            any(
+                item["is_downpayment"]
+                for item in payload["items"]
+            )
+        )
+
+        fiscal_total = sum(
+            float(item["amount"])
+            for item in payload["items"]
+        )
+
+        self.assertAlmostEqual(
+            fiscal_total,
+            final_move.amount_total,
+            places=2,
+        )
+
+        self.assertEqual(
+            len(payload["items"]),
+            1,
+        )
+
+        item = payload["items"][0]
+
+        self.assertAlmostEqual(
+            float(item["quantity"]),
+            2.0,
+            places=2,
+        )
+
+        self.assertAlmostEqual(
+            float(item["unit_price"]),
+            700.0,
+            places=2,
+        )
+
+        self.assertAlmostEqual(
+            float(item["amount"]),
+            1652.0,
+            places=2,
+        )
+
+    def test_01_prepare_payload_ht(
+        self,
+    ):
+        move = (
+            self._create_posted_invoice(
+                quantity=2.125,
+                price_unit=1000.0,
+            )
+        )
+
+        payload = (
+            move._prepare_secef_payload()
+        )
+
+        self.assertEqual(
+            set(payload),
+            {
+                "customer",
+                "invoice",
+                "items",
+                "payments",
+            },
+        )
+
+        invoice = payload[
+            "invoice"
+        ]
+
+        self.assertEqual(
+            invoice[
+                "invoice_number"
+            ],
+            move.name,
+        )
+
+        self.assertEqual(
+            invoice[
+                "invoice_type"
+            ],
+            "FV",
+        )
+
+        self.assertEqual(
+            invoice[
+                "price_mode"
+            ],
+            "HT",
+        )
+
+        self.assertEqual(
+            invoice[
+                "ifu"
+            ],
+            "00225673B",
+        )
+
+        self.assertEqual(
+            invoice[
+                "sfe_id"
+            ],
+            "SUNAPPTEST",
+        )
+
+        self.assertEqual(
+            payload[
+                "customer"
+            ][
+                "customer_type"
+            ],
+            "PM",
+        )
+
+        self.assertEqual(
+            len(
+                payload[
+                    "items"
+                ]
+            ),
+            1,
+        )
+
+        item = payload[
+            "items"
+        ][0]
+
+        self.assertEqual(
+            item[
+                "item_type"
+            ],
+            "LOCBIE",
+        )
+
+        self.assertEqual(
+            item[
+                "tax_group"
+            ],
+            "B",
+        )
+
+        self.assertEqual(
+            item[
+                "tax_rate"
+            ],
+            "18",
+        )
+
+        self.assertEqual(
+            item[
+                "quantity"
+            ],
+            "2.125",
+        )
+
+        self.assertEqual(
+            item[
+                "unit_price"
+            ],
+            "1000.00",
+        )
+
+        # Le montant de ligne envoyé
+        # au MCF est TTC.
+        self.assertEqual(
+            item[
+                "amount"
+            ],
+            "2507.50",
+        )
+
+        self.assertEqual(
+            item[
+                "internal_code"
+            ],
+            "ART-SECEF-001",
+        )
+
+        self.assertIsNone(
+            payload[
+                "payments"
+            ]
+        )
+
+    def test_01b_prepare_payload_ttc_precision(
+        self,
+    ):
+        self.tax.write({
+            "price_include": True,
+        })
+
+        move = (
+            self._create_posted_invoice(
+                quantity=1.125,
+                price_unit=1180.0,
+            )
+        )
+
+        payload = (
+            move._prepare_secef_payload()
+        )
+
+        self.assertEqual(
+            payload["invoice"]["price_mode"],
+            "TTC",
+        )
+
+        item = payload["items"][0]
+
+        self.assertEqual(
+            item["quantity"],
+            "1.125",
+        )
+
+        self.assertEqual(
+            item["unit_price"],
+            "1180.00",
+        )
+
+        self.assertEqual(
+            item["amount"],
+            "1327.50",
+        )
+
+    def test_01c_secef_numeric_rounding(
+        self,
+    ):
+        move_model = self.env[
+            "account.move"
+        ]
+
+        self.assertEqual(
+            move_model._secef_amount(
+                "10.005"
+            ),
+            "10.01",
+        )
+
+        self.assertEqual(
+            move_model._secef_quantity(
+                "1.2345"
+            ),
+            "1.235",
+        )
+
+        self.assertEqual(
+            move_model._secef_amount(
+                "-0.004"
+            ),
+            "0.00",
+        )
+
+
+    def test_01d_export_sale_is_ev(
+        self,
+    ):
+        move = self._create_posted_invoice()
+
+        move.secef_sale_type = "export"
+
+        payload = (
+            move._prepare_secef_payload()
+        )
+
+        self.assertEqual(
+            move.secef_effective_sale_type,
+            "export",
+        )
+
+        self.assertEqual(
+            payload["invoice"]["invoice_type"],
+            "EV",
+        )
+
+    def test_01e_export_downpayment_is_et(
+        self,
+    ):
+        move, _order = (
+            self._create_posted_downpayment_invoice()
+        )
+
+        move.secef_sale_type = "export"
+
+        payload = (
+            move._prepare_secef_payload()
+        )
+
+        self.assertEqual(
+            move.secef_effective_sale_type,
+            "export",
+        )
+
+        self.assertEqual(
+            payload["invoice"]["invoice_type"],
+            "ET",
+        )
+
+    def test_01f_partner_psvb_default_is_copied(
+        self,
+    ):
+        self.partner.secef_psvb_group = "A"
+
+        move = self._create_posted_invoice()
+
+        self.assertEqual(
+            move.secef_psvb_group,
+            "A",
+        )
+
+        payload = (
+            move._prepare_secef_payload()
+        )
+
+        self.assertEqual(
+            payload["invoice"]["psvb"],
+            "A",
+        )
+
+        self.assertEqual(
+            move.secef_psvb_rate,
+            2.0,
+        )
+
+        self.assertAlmostEqual(
+            move.secef_psvb_amount,
+            move.amount_total * 0.02,
+            places=2,
+        )
+
+        self.assertAlmostEqual(
+            move.secef_total_with_psvb,
+            (
+                move.amount_total
+                + move.secef_psvb_amount
+            ),
+            places=2,
+        )
+
+    def test_01g_invoice_psvb_can_override_customer(
+        self,
+    ):
+        self.partner.secef_psvb_group = "A"
+
+        move = self._create_posted_invoice()
+
+        move.secef_psvb_group = "B"
+
+        payload = (
+            move._prepare_secef_payload()
+        )
+
+        self.assertEqual(
+            move.secef_psvb_group,
+            "B",
+        )
+
+        self.assertEqual(
+            move.secef_psvb_rate,
+            1.0,
+        )
+
+        self.assertEqual(
+            payload["invoice"]["psvb"],
+            "B",
+        )
+
+    def test_01h_invoice_can_disable_customer_psvb(
+        self,
+    ):
+        self.partner.secef_psvb_group = "A"
+
+        move = self._create_posted_invoice()
+
+        move.secef_psvb_group = False
+
+        payload = (
+            move._prepare_secef_payload()
+        )
+
+        self.assertFalse(
+            move.secef_psvb_group
+        )
+
+        self.assertEqual(
+            move.secef_psvb_amount,
+            0.0,
+        )
+
+        self.assertNotIn(
+            "psvb",
+            payload["invoice"],
+        )
+
+    def test_01i_psvb_group_c_rate(
+        self,
+    ):
+        move = self._create_posted_invoice()
+
+        move.secef_psvb_group = "C"
+
+        payload = (
+            move._prepare_secef_payload()
+        )
+
+        self.assertEqual(
+            move.secef_psvb_rate,
+            0.2,
+        )
+
+        self.assertAlmostEqual(
+            move.secef_psvb_amount,
+            move.amount_total * 0.002,
+            places=2,
+        )
+
+        self.assertEqual(
+            payload["invoice"]["psvb"],
+            "C",
+        )
+
+    def test_01j_psvb_group_d_zero_rate(
+        self,
+    ):
+        move = self._create_posted_invoice()
+
+        move.secef_psvb_group = "D"
+
+        payload = (
+            move._prepare_secef_payload()
+        )
+
+        self.assertEqual(
+            move.secef_psvb_rate,
+            0.0,
+        )
+
+        self.assertEqual(
+            move.secef_psvb_amount,
+            0.0,
+        )
+
+        self.assertAlmostEqual(
+            move.secef_total_with_psvb,
+            move.amount_total,
+            places=2,
+        )
+
+        self.assertEqual(
+            payload["invoice"]["psvb"],
+            "D",
+        )
+
+    def test_01k_expected_total_is_sent(
+        self,
+    ):
+        move = self._create_posted_invoice()
+
+        move.secef_psvb_group = "B"
+
+        payload = (
+            move._prepare_secef_payload()
+        )
+
+        self.assertIn(
+            "expected_total",
+            payload,
+        )
+
+        # 2 x 1000 HT + TVA 18 % = 2360 TTC.
+        # PSVB B = 1 % = 23.60.
+        # Total fiscal exact = 2383.60.
+        #
+        # Ce test ne doit surtout pas comparer le payload
+        # au champ Monetary XOF, qui peut être arrondi
+        # à l'unité par Odoo.
+        self.assertEqual(
+            payload["expected_total"],
+            "2383.60",
+        )
+
+        self.assertEqual(
+            move._secef_expected_total_exact(),
+            Decimal("2383.60"),
+        )
+
+        self.assertNotIn(
+            "expected_total",
+            payload["invoice"],
+        )
+
+    def test_01l_psvb_xof_fractional_total_regression(
+        self,
+    ):
+        """
+        Régression du cas réel :
+        HT 1500
+        TVA 18 % = 270
+        TTC = 1770
+        PSVB A 2 % = 35.40
+        Total fiscal = 1805.40
+
+        Le payload fiscal doit conserver les centimes même
+        lorsque la devise XOF est configurée avec un arrondi
+        monétaire à l'unité.
+        """
+
+        move = self._create_posted_invoice(
+            quantity=1.0,
+            price_unit=1500.0,
+        )
+
+        move.secef_psvb_group = "A"
+
+        payload = (
+            move._prepare_secef_payload()
+        )
+
+        self.assertAlmostEqual(
+            move.amount_untaxed,
+            1500.0,
+            places=2,
+        )
+
+        self.assertAlmostEqual(
+            move.amount_tax,
+            270.0,
+            places=2,
+        )
+
+        self.assertAlmostEqual(
+            move.amount_total,
+            1770.0,
+            places=2,
+        )
+
+        self.assertEqual(
+            move.secef_psvb_rate,
+            2.0,
+        )
+
+        self.assertAlmostEqual(
+            move.secef_psvb_amount_display,
+            35.40,
+            places=2,
+        )
+
+        self.assertAlmostEqual(
+            move.secef_total_with_psvb_display,
+            1805.40,
+            places=2,
+        )
+
+        self.assertEqual(
+            move._secef_expected_total_exact(),
+            Decimal("1805.40"),
+        )
+
+        self.assertEqual(
+            payload["invoice"]["psvb"],
+            "A",
+        )
+
+        self.assertEqual(
+            payload["expected_total"],
+            "1805.40",
+        )
+
+    # =========================================================
+    # Outbox locale
+    # =========================================================
+
+    def test_02_request_creates_local_outbox(
+        self,
+    ):
+        move = (
+            self._create_posted_invoice()
+        )
+
+        transaction = (
+            self._create_outbox(
+                move
+            )
+        )
+
+        self.assertEqual(
+            move.secef_state,
+            "pending",
+        )
+
+        self.assertEqual(
+            transaction.state,
+            "pending",
+        )
+
+        self.assertTrue(
+            transaction.request_uid
+        )
+
+        self.assertEqual(
+            transaction.agent_uid,
+            self.agent_uid,
+        )
+
+        self.assertFalse(
+            transaction.central_job_uid
+        )
+
+        self.assertEqual(
+            transaction
+            .request_payload[
+                "invoice"
+            ][
+                "invoice_number"
+            ],
+            move.name,
+        )
+
+        self.assertTrue(
+            move.secef_can_dispatch
+        )
+
+        self.assertFalse(
+            move.secef_can_sync
+        )
+
+    # =========================================================
+    # Dispatch central
+    # =========================================================
+
+    def test_03_dispatch_records_central_job(
+        self,
+    ):
+        move = (
+            self._create_posted_invoice()
+        )
+
+        transaction = (
+            self._create_outbox(
+                move
+            )
+        )
+
+        response = (
+            self._central_response(
+                move,
+                transaction,
+                status="pending",
+            )
+        )
+
+        client = FakeCentralClient(
+            create_response=response
+        )
+
+        result = (
+            move
+            ._dispatch_secef_transaction(
+                transaction.sudo(),
+                client=client,
+            )
+        )
+
+        self.assertTrue(
+            result
+        )
+
+        self.assertEqual(
+            len(
+                client.create_calls
+            ),
+            1,
+        )
+
+        call = (
+            client
+            .create_calls[0]
+        )
+
+        self.assertEqual(
+            call[
+                "request_uid"
+            ],
+            transaction.request_uid,
+        )
+
+        self.assertEqual(
+            call[
+                "agent_uid"
+            ],
+            self.agent_uid,
+        )
+
+        self.assertEqual(
+            call[
+                "invoice_number"
+            ],
+            move.name,
+        )
+
+        self.assertEqual(
+            call[
+                "job_type"
+            ],
+            "invoice.certify",
+        )
+
+        self.assertEqual(
+            transaction.central_job_uid,
+            response[
+                "job_uid"
+            ],
+        )
+
+        self.assertEqual(
+            transaction.state,
+            "pending",
+        )
+
+        self.assertFalse(
+            move.secef_can_dispatch
+        )
+
+        self.assertTrue(
+            move.secef_can_sync
+        )
+
+    def test_04_transport_error_preserves_request_uid(
+        self,
+    ):
+        move = (
+            self._create_posted_invoice()
+        )
+
+        transaction = (
+            self._create_outbox(
+                move
+            )
+        )
+
+        original_uid = (
+            transaction.request_uid
+        )
+
+        client = FakeCentralClient(
+            create_error=(
+                SecefCentralTransportError(
+                    "Serveur central indisponible."
+                )
+            )
+        )
+
+        result = (
+            move
+            ._dispatch_secef_transaction(
+                transaction.sudo(),
+                client=client,
+            )
+        )
+
+        self.assertFalse(
+            result
+        )
+
+        self.assertEqual(
+            transaction.request_uid,
+            original_uid,
+        )
+
+        self.assertEqual(
+            transaction.state,
+            "pending",
+        )
+
+        self.assertFalse(
+            transaction.central_job_uid
+        )
+
+        self.assertEqual(
+            move.secef_state,
+            "pending",
+        )
+
+        self.assertTrue(
+            transaction.error_message
+        )
+
+        self.assertTrue(
+            move.secef_can_dispatch
+        )
+
+    # =========================================================
+    # Synchronisation centrale
+    # =========================================================
+
+    def test_05_sync_processing(
+        self,
+    ):
+        move = (
+            self._create_posted_invoice()
+        )
+
+        transaction = (
+            self._create_outbox(
+                move
+            )
+        )
+
+        pending_response = (
+            self._central_response(
+                move,
+                transaction,
+                status="pending",
+            )
+        )
+
+        transaction._record_central_ack(
+            pending_response
+        )
+
+        processing_response = (
+            self._central_response(
+                move,
+                transaction,
+                status="processing",
+                job_uid=(
+                    pending_response[
+                        "job_uid"
+                    ]
+                ),
+            )
+        )
+
+        client = FakeCentralClient(
+            get_response=(
+                processing_response
+            )
+        )
+
+        result = (
+            move._sync_secef_transaction(
+                transaction.sudo(),
+                client=client,
+            )
+        )
+
+        self.assertTrue(
+            result
+        )
+
+        self.assertEqual(
+            transaction.state,
+            "processing",
+        )
+
+        self.assertEqual(
+            move.secef_state,
+            "processing",
+        )
+
+        self.assertTrue(
+            transaction.started_at
+        )
+
+        self.assertTrue(
+            move.secef_can_sync
+        )
+
+    def test_06_sync_completed_certifies_invoice(
+        self,
+    ):
+        move = (
+            self._create_posted_invoice()
+        )
+
+        transaction = (
+            self._create_outbox(
+                move
+            )
+        )
+
+        pending_response = (
+            self._central_response(
+                move,
+                transaction,
+                status="pending",
+            )
+        )
+
+        transaction._record_central_ack(
+            pending_response
+        )
+
+        result_payload = (
+            self._fiscal_result(
+                move
+            )
+        )
+
+        completed_response = (
+            self._central_response(
+                move,
+                transaction,
+                status="completed",
+                result=result_payload,
+                job_uid=(
+                    pending_response[
+                        "job_uid"
+                    ]
+                ),
+            )
+        )
+
+        client = FakeCentralClient(
+            get_response=(
+                completed_response
+            )
+        )
+
+        result = (
+            move._sync_secef_transaction(
+                transaction.sudo(),
+                client=client,
+            )
+        )
+
+        self.assertTrue(
+            result
+        )
+
+        self.assertEqual(
+            transaction.state,
+            "completed",
+        )
+
+        self.assertEqual(
+            move.secef_state,
+            "certified",
+        )
+
+        self.assertTrue(
+            transaction.completed_at
+        )
+
+        self.assertEqual(
+            move.secef_mid,
+            "DT02200630-1",
+        )
+
+        self.assertEqual(
+            move.secef_signature,
+            "TESTAUTOMATIQUE001",
+        )
+
+        self.assertEqual(
+            move.secef_fiscal_counter,
+            100,
+        )
+
+        self.assertEqual(
+            move.secef_total_counter,
+            200,
+        )
+
+        self.assertEqual(
+            move.secef_qr_data,
+            result_payload[
+                "qr_data"
+            ],
+        )
+
+        self.assertFalse(
+            move.secef_can_dispatch
+        )
+
+        self.assertFalse(
+            move.secef_can_sync
+        )
+
+    def test_06b_certified_invoice_drives_refund_reference(
+        self,
+    ):
+        move = (
+            self._create_posted_invoice()
+        )
+
+        transaction = (
+            self._create_outbox(
+                move
+            )
+        )
+
+        pending_response = (
+            self._central_response(
+                move,
+                transaction,
+                status="pending",
+            )
+        )
+
+        transaction._record_central_ack(
+            pending_response
+        )
+
+        result_payload = (
+            self._fiscal_result(
+                move
+            )
+        )
+
+        completed_response = (
+            self._central_response(
+                move,
+                transaction,
+                status="completed",
+                result=result_payload,
+                job_uid=(
+                    pending_response[
+                        "job_uid"
+                    ]
+                ),
+            )
+        )
+
+        client = FakeCentralClient(
+            get_response=completed_response
+        )
+
+        self.assertTrue(
+            move._sync_secef_transaction(
+                transaction.sudo(),
+                client=client,
+            )
+        )
+
+        self.assertEqual(
+            move.secef_mid,
+            "DT02200630-1",
+        )
+
+        self.assertEqual(
+            move.secef_total_counter,
+            200,
+        )
+
+        refund = self.env["account.move"].create({
+            "move_type": "out_refund",
+            "partner_id": self.partner.id,
+            "invoice_date": fields.Date.today(),
+            "company_id": self.company.id,
+            "reversed_entry_id": move.id,
+            "secef_refund_reason": "COR",
+            "invoice_line_ids": [
+                (
+                    0,
+                    0,
+                    {
+                        "product_id": self.product.id,
+                        "name": self.product.display_name,
+                        "quantity": 2.0,
+                        "price_unit": 1000.0,
+                        "tax_ids": [
+                            (
+                                6,
+                                0,
+                                self.tax.ids,
+                            ),
+                        ],
+                    },
+                ),
+            ],
+        })
+
+        refund.action_post()
+
+        payload = (
+            refund._prepare_secef_payload()
+        )
+
+        self.assertEqual(
+            payload["invoice"]["invoice_type"],
+            "FA",
+        )
+
+        self.assertEqual(
+            payload["invoice"]["refund_reason"],
+            "COR",
+        )
+
+        self.assertEqual(
+            payload["invoice"]["reference_number"],
+            "DT02200630-1-200",
+        )
+
+    def test_07_sync_failed(
+        self,
+    ):
+        move = (
+            self._create_posted_invoice()
+        )
+
+        transaction = (
+            self._create_outbox(
+                move
+            )
+        )
+
+        pending_response = (
+            self._central_response(
+                move,
+                transaction,
+                status="pending",
+            )
+        )
+
+        transaction._record_central_ack(
+            pending_response
+        )
+
+        failed_response = (
+            self._central_response(
+                move,
+                transaction,
+                status="failed",
+                error_message=(
+                    "FIS-NANO indisponible"
+                ),
+                job_uid=(
+                    pending_response[
+                        "job_uid"
+                    ]
+                ),
+            )
+        )
+
+        client = FakeCentralClient(
+            get_response=(
+                failed_response
+            )
+        )
+
+        move._sync_secef_transaction(
+            transaction.sudo(),
+            client=client,
+        )
+
+        self.assertEqual(
+            transaction.state,
+            "failed",
+        )
+
+        self.assertEqual(
+            move.secef_state,
+            "failed",
+        )
+
+        self.assertEqual(
+            move.secef_error_message,
+            "FIS-NANO indisponible",
+        )
+
+        self.assertTrue(
+            transaction.completed_at
+        )
+
+    def test_08_unknown_blocks_new_certification(
+        self,
+    ):
+        move = (
+            self._create_posted_invoice()
+        )
+
+        transaction = (
+            self._create_outbox(
+                move
+            )
+        )
+
+        pending_response = (
+            self._central_response(
+                move,
+                transaction,
+                status="pending",
+            )
+        )
+
+        transaction._record_central_ack(
+            pending_response
+        )
+
+        unknown_response = (
+            self._central_response(
+                move,
+                transaction,
+                status="unknown",
+                error_message=(
+                    "Résultat fiscal indéterminé."
+                ),
+                job_uid=(
+                    pending_response[
+                        "job_uid"
+                    ]
+                ),
+            )
+        )
+
+        client = FakeCentralClient(
+            get_response=(
+                unknown_response
+            )
+        )
+
+        move._sync_secef_transaction(
+            transaction.sudo(),
+            client=client,
+        )
+
+        self.assertEqual(
+            transaction.state,
+            "unknown",
+        )
+
+        self.assertEqual(
+            move.secef_state,
+            "unknown",
+        )
+
+        with self.assertRaises(
+            UserError
+        ):
+            move.action_request_secef_certification()
+
+        self.assertEqual(
+            len(
+                move.secef_transaction_ids
+            ),
+            1,
+        )
+
+    # =========================================================
+    # Protection facture certifiée
+    # =========================================================
+
+    def test_09_certified_invoice_is_locked(
+        self,
+    ):
+        move = (
+            self._create_posted_invoice()
+        )
+
+        move.write({
+            "secef_state":
+                "certified",
+        })
+
+        with self.assertRaises(
+            UserError
+        ):
+            move.write({
+                "partner_id":
+                    self.partner.id,
+            })
+
+        with self.assertRaises(
+            UserError
+        ):
+            move.button_draft()
+
+        line = (
+            move.invoice_line_ids
+            .filtered(
+                lambda invoice_line:
+                    invoice_line.display_type
+                    == "product"
+            )[:1]
+        )
+
+        self.assertTrue(
+            line
+        )
+
+        with self.assertRaises(
+            UserError
+        ):
+            line.write({
+                "quantity":
+                    5.0,
+            })
+
+        with self.assertRaises(
+            UserError
+        ):
+            line.unlink()
+
+    def test_10_certified_invoice_allows_non_fiscal_write(
+        self,
+    ):
+        move = (
+            self._create_posted_invoice()
+        )
+
+        move.write({
+            "secef_state":
+                "certified",
+        })
+
+        result = move.write({
+            "secef_error_message":
+                False,
+        })
+
+        self.assertTrue(
+            result
+        )
+
+        self.assertEqual(
+            move.secef_state,
+            "certified",
+        )
+
+    # =========================================================
+    # Idempotence
+    # =========================================================
+
+    def test_11_request_uid_must_be_unique(
+        self,
+    ):
+        move_1 = (
+            self._create_posted_invoice()
+        )
+
+        move_2 = (
+            self._create_posted_invoice()
+        )
+
+        request_uid = str(
+            uuid.uuid4()
+        )
+
+        self.env[
+            "sunsoft.secef.transaction"
+        ].sudo().create({
+            "move_id":
+                move_1.id,
+
+            "request_uid":
+                request_uid,
+
+            "agent_uid":
+                self.agent_uid,
+
+            "request_payload":
+                {},
+        })
+
+        with self.assertRaises(
+            IntegrityError
+        ):
+            with self.env.cr.savepoint():
+                self.env[
+                    "sunsoft.secef.transaction"
+                ].sudo().create({
+                    "move_id":
+                        move_2.id,
+
+                    "request_uid":
+                        request_uid,
+
+                    "agent_uid":
+                        self.agent_uid,
+
+                    "request_payload":
+                        {},
+                })
+
+    def test_12_retry_after_failed_creates_new_outbox(
+        self,
+    ):
+        move = (
+            self._create_posted_invoice()
+        )
+
+        first_transaction = (
+            self._create_outbox(
+                move
+            )
+        )
+
+        first_uid = (
+            first_transaction
+            .request_uid
+        )
+
+        first_transaction._mark_failed(
+            "Échec certain de test."
+        )
+
+        self.assertEqual(
+            move.secef_state,
+            "failed",
+        )
+
+        move.action_request_secef_certification()
+
+        transactions = (
+            self.env[
+                "sunsoft.secef.transaction"
+            ]
+            .search(
+                [
+                    (
+                        "move_id",
+                        "=",
+                        move.id,
+                    ),
+                ],
+                order="id asc",
+            )
+        )
+
+        self.assertEqual(
+            len(transactions),
+            2,
+        )
+
+        new_transaction = (
+            transactions
+            .filtered(
+                lambda transaction:
+                    transaction.id
+                    != first_transaction.id
+            )
+        )
+
+        self.assertEqual(
+            len(new_transaction),
+            1,
+        )
+
+        self.assertEqual(
+            first_transaction.state,
+            "failed",
+        )
+
+        self.assertEqual(
+            new_transaction.state,
+            "pending",
+        )
+
+        self.assertNotEqual(
+            first_uid,
+            new_transaction.request_uid,
+        )
+
+        self.assertEqual(
+            move.secef_state,
+            "pending",
+        )
+
+        self.assertFalse(
+            move.secef_error_message
+        )
+
+    # =========================================================
+    # Configuration
+    # =========================================================
+
+    def test_13_invalid_central_configuration_creates_no_outbox(
+        self,
+    ):
+        move = (
+            self._create_posted_invoice()
+        )
+
+        self.company.write({
+            "secef_central_url":
+                False,
+        })
+
+        with self.assertRaises(
+            UserError
+        ):
+            move.action_request_secef_certification()
+
+        transactions = (
+            self.env[
+                "sunsoft.secef.transaction"
+            ]
+            .search([
+                (
+                    "move_id",
+                    "=",
+                    move.id,
+                ),
+            ])
+        )
+
+        self.assertFalse(
+            transactions
+        )
+
+        self.assertEqual(
+            move.secef_state,
+            "not_certified",
+        )
+
+    def test_01m_comments_extra_info_and_rccm_payload(
+        self,
+    ):
+        self.company.write({
+            "secef_tax_regime": "RSI",
+            "secef_tax_office": "DME CENTRE",
+        })
+
+        self.partner.company_registry = (
+            "BF-OUA-TEST-RCCM"
+        )
+
+        bank_account = self.env[
+            "res.partner.bank"
+        ].create({
+            "acc_number": "BF00123456789",
+            "partner_id":
+                self.company.partner_id.id,
+        })
+
+        move = self._create_posted_invoice()
+
+        move.write({
+            "partner_bank_id":
+                bank_account.id,
+            "secef_comment_a":
+                "  Ligne A  ",
+            "secef_comment_h":
+                "Ligne H",
+        })
+
+        payload = (
+            move._prepare_secef_payload()
+        )
+
+        self.assertEqual(
+            payload["comments"],
+            {
+                "A": "Ligne A",
+                "H": "Ligne H",
+            },
+        )
+
+        self.assertEqual(
+            payload["extra_info"],
+            {
+                "REGIMP": "RSI",
+                "SERIMP": "DME CENTRE",
+                "COMBAN": "BF00123456789",
+            },
+        )
+
+        self.assertEqual(
+            payload["customer"]["rccm"],
+            "BF-OUA-TEST-RCCM",
+        )
+
+    def test_01n_empty_comments_and_extra_info_are_omitted(
+        self,
+    ):
+        self.company.write({
+            "secef_tax_regime": False,
+            "secef_tax_office": False,
+        })
+
+        move = self._create_posted_invoice()
+
+        payload = (
+            move._prepare_secef_payload()
+        )
+
+        self.assertNotIn(
+            "comments",
+            payload,
+        )
+
+        self.assertNotIn(
+            "extra_info",
+            payload,
+        )
+
+    def test_01o_comment_over_255_is_rejected(
+        self,
+    ):
+        move = self._create_posted_invoice()
+
+        move.secef_comment_a = (
+            "X" * 256
+        )
+
+        with self.assertRaises(
+            UserError
+        ):
+            move._prepare_secef_payload()

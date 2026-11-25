@@ -1,0 +1,437 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_move_form_inherit_sunsoft_secef" model="ir.ui.view">
+        <field name="name">account.move.form.sunsoft.secef</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_move_form"/>
+        <field name="arch" type="xml">
+
+            <!-- ==================================================
+                 ACTIONS SECeF
+                 ================================================== -->
+            <xpath expr="//header" position="inside">
+                <button
+                    name="action_request_secef_certification"
+                    type="object"
+                    string="Certifier SECeF"
+                    class="oe_highlight"
+                    invisible="not secef_enabled or move_type not in ('out_invoice', 'out_refund') or state != 'posted' or secef_state in ('pending', 'processing', 'certified', 'unknown')"
+                />
+
+                <button
+                    name="action_retry_secef_dispatch"
+                    type="object"
+                    string="Envoyer SECeF"
+                    invisible="not secef_enabled or not secef_can_dispatch"
+                />
+
+                <button
+                    name="action_sync_secef_certification"
+                    type="object"
+                    string="Synchroniser SECeF"
+                    invisible="not secef_enabled or not secef_can_sync"
+                />
+
+                <button
+                    name="action_print_secef_duplicate"
+                    type="object"
+                    string="Imprimer duplicata"
+                    invisible="not secef_enabled or secef_state != 'certified'"
+                />
+            </xpath>
+
+            <!-- ==================================================
+                 INFORMATIONS SECeF
+                 ================================================== -->
+            <xpath expr="//sheet/notebook" position="before">
+
+                <field name="secef_enabled" invisible="1"/>
+                <field name="secef_can_dispatch" invisible="1"/>
+                <field name="secef_can_sync" invisible="1"/>
+
+                <!-- Champs techniques de supervision Agent -->
+                <field
+                    name="secef_agent_connection_alert"
+                    invisible="1"
+                />
+                <field
+                    name="secef_agent_last_seen_at"
+                    invisible="1"
+                />
+
+                <group
+                    string="Certification SECeF"
+                    invisible="move_type not in ('out_invoice', 'out_refund') or (not secef_enabled and secef_state == 'not_certified')"
+                >
+                    <group>
+                        <field
+                            name="secef_state"
+                            readonly="1"
+                        />
+
+                        <field
+                            name="reversed_entry_id"
+                            invisible="1"
+                        />
+
+                        <field
+                            name="secef_sale_type"
+                            invisible="move_type not in ('out_invoice', 'out_refund') or (move_type == 'out_refund' and reversed_entry_id)"
+                            readonly="secef_state in ('pending', 'processing', 'certified', 'unknown')"
+                        />
+
+                        <field
+                            name="secef_effective_sale_type"
+                            invisible="move_type != 'out_refund' or not reversed_entry_id"
+                            readonly="1"
+                        />
+
+                        <field
+                            name="secef_psvb_group"
+                            invisible="move_type != 'out_invoice'"
+                            readonly="secef_state in ('pending', 'processing', 'certified', 'unknown')"
+                        />
+
+                        <field
+                            name="secef_psvb_rate"
+                            invisible="move_type != 'out_invoice' or not secef_psvb_group"
+                            readonly="1"
+                        />
+
+                        <field
+                            name="secef_psvb_amount_display"
+                            invisible="move_type != 'out_invoice' or not secef_psvb_group"
+                            readonly="1"
+                        />
+
+                        <field
+                            name="secef_total_with_psvb_display"
+                            invisible="move_type != 'out_invoice' or not secef_psvb_group"
+                            readonly="1"
+                        />
+
+                        <field
+                            name="secef_refund_reason"
+                            invisible="move_type != 'out_refund'"
+                            readonly="secef_state in ('pending', 'processing', 'certified', 'unknown')"
+                            required="move_type == 'out_refund' and secef_state in ('not_certified', 'failed')"
+                        />
+
+                        <field
+                            name="secef_reference_number"
+                            invisible="move_type != 'out_refund' or secef_refund_reason == 'RRR'"
+                            readonly="secef_state in ('pending', 'processing', 'certified', 'unknown')"
+                            placeholder="Laisser vide si l'avoir est lié à sa facture d'origine"
+                        />
+
+                        <field
+                            name="secef_mid"
+                            readonly="1"
+                        />
+
+                        <field
+                            name="secef_datetime"
+                            readonly="1"
+                        />
+
+                        <field
+                            name="secef_signature"
+                            readonly="1"
+                        />
+                    </group>
+
+                    <group>
+                        <field
+                            name="secef_fiscal_counter"
+                            readonly="1"
+                        />
+
+                        <field
+                            name="secef_total_counter"
+                            readonly="1"
+                        />
+
+                        <field
+                            name="secef_qr_data"
+                            readonly="1"
+                        />
+
+                        <field
+                            name="secef_error_message"
+                            readonly="1"
+                            invisible="not secef_error_message"
+                        />
+                    </group>
+                </group>
+
+                <!-- ==================================================
+                     ALERTE CONNEXION AGENT / MCF
+                     ================================================== -->
+                <div
+                    class="alert alert-danger"
+                    role="alert"
+                    invisible="not secef_agent_connection_alert"
+                >
+                    <strong>Alerte SECeF :</strong>
+                    aucune connexion de l'Agent MCF depuis plus de 7 jours.
+
+                    <span invisible="not secef_agent_last_seen_at">
+                        Dernière connexion :
+                        <field
+                            name="secef_agent_last_seen_at"
+                            readonly="1"
+                        />
+                    </span>
+                </div>
+
+                <!-- ==================================================
+                     ALERTE RÉSULTAT INDÉTERMINÉ
+                     ================================================== -->
+                <div
+                    class="alert alert-danger"
+                    role="alert"
+                    invisible="move_type not in ('out_invoice', 'out_refund') or secef_state != 'unknown'"
+                >
+                    <strong>Résultat fiscal indéterminé.</strong>
+                    Une nouvelle certification est bloquée.
+                    Vérifiez la situation fiscale de ce document
+                    avant toute nouvelle opération SECeF.
+                </div>
+
+            </xpath>
+
+            <!-- ==================================================
+                 HISTORIQUE TRANSACTIONS
+                 ================================================== -->
+            <xpath expr="//sheet/notebook" position="inside">
+
+                <page
+                    string="Commentaires SECeF"
+                    invisible="move_type not in ('out_invoice', 'out_refund') or (not secef_enabled and secef_state == 'not_certified')"
+                >
+                    <group>
+                        <group string="Commentaire A">
+                            <field
+                                name="secef_comment_a_label"
+                                readonly="secef_state in ('pending', 'processing', 'certified', 'unknown')"
+                            />
+                            <field
+                                name="secef_comment_a"
+                                readonly="secef_state in ('pending', 'processing', 'certified', 'unknown')"
+                            />
+                        </group>
+
+                        <group string="Commentaire B">
+                            <field
+                                name="secef_comment_b_label"
+                                readonly="secef_state in ('pending', 'processing', 'certified', 'unknown')"
+                            />
+                            <field
+                                name="secef_comment_b"
+                                readonly="secef_state in ('pending', 'processing', 'certified', 'unknown')"
+                            />
+                        </group>
+
+                        <group string="Commentaire C">
+                            <field
+                                name="secef_comment_c_label"
+                                readonly="secef_state in ('pending', 'processing', 'certified', 'unknown')"
+                            />
+                            <field
+                                name="secef_comment_c"
+                                readonly="secef_state in ('pending', 'processing', 'certified', 'unknown')"
+                            />
+                        </group>
+
+                        <group string="Commentaire D">
+                            <field
+                                name="secef_comment_d_label"
+                                readonly="secef_state in ('pending', 'processing', 'certified', 'unknown')"
+                            />
+                            <field
+                                name="secef_comment_d"
+                                readonly="secef_state in ('pending', 'processing', 'certified', 'unknown')"
+                            />
+                        </group>
+
+                        <group string="Commentaire E">
+                            <field
+                                name="secef_comment_e_label"
+                                readonly="secef_state in ('pending', 'processing', 'certified', 'unknown')"
+                            />
+                            <field
+                                name="secef_comment_e"
+                                readonly="secef_state in ('pending', 'processing', 'certified', 'unknown')"
+                            />
+                        </group>
+
+                        <group string="Commentaire F">
+                            <field
+                                name="secef_comment_f_label"
+                                readonly="secef_state in ('pending', 'processing', 'certified', 'unknown')"
+                            />
+                            <field
+                                name="secef_comment_f"
+                                readonly="secef_state in ('pending', 'processing', 'certified', 'unknown')"
+                            />
+                        </group>
+
+                        <group string="Commentaire G">
+                            <field
+                                name="secef_comment_g_label"
+                                readonly="secef_state in ('pending', 'processing', 'certified', 'unknown')"
+                            />
+                            <field
+                                name="secef_comment_g"
+                                readonly="secef_state in ('pending', 'processing', 'certified', 'unknown')"
+                            />
+                        </group>
+
+                        <group string="Commentaire H">
+                            <field
+                                name="secef_comment_h_label"
+                                readonly="secef_state in ('pending', 'processing', 'certified', 'unknown')"
+                            />
+                            <field
+                                name="secef_comment_h"
+                                readonly="secef_state in ('pending', 'processing', 'certified', 'unknown')"
+                            />
+                        </group>
+                    </group>
+                </page>
+
+                <page
+                    string="Transactions SECeF"
+                    invisible="move_type not in ('out_invoice', 'out_refund') or (not secef_enabled and secef_state == 'not_certified')"
+                >
+                    <field
+                        name="secef_transaction_ids"
+                        readonly="1"
+                    >
+                        <list
+                            create="0"
+                            edit="0"
+                            delete="0"
+                        >
+                            <field name="create_date"/>
+                            <field name="request_uid"/>
+                            <field name="central_job_uid"/>
+                            <field name="agent_uid"/>
+                            <field name="state"/>
+                            <field name="last_sync_at"/>
+                            <field name="started_at"/>
+                            <field name="completed_at"/>
+                            <field name="error_message"/>
+                        </list>
+                    </field>
+                </page>
+
+            </xpath>
+
+        </field>
+    </record>
+
+    <!-- =====================================================
+         REMISE SECeF : POURCENTAGE / MONTANT FIXE
+         ===================================================== -->
+
+    <record
+        id="view_move_form_secef_discount_mode"
+        model="ir.ui.view"
+    >
+        <field name="name">
+            account.move.form.secef.discount.mode
+        </field>
+
+        <field name="model">
+            account.move
+        </field>
+
+        <field
+            name="inherit_id"
+            ref="account.view_move_form"
+        />
+
+        <field name="arch" type="xml">
+
+            <xpath
+                expr="//field[@name='invoice_line_ids']/list/field[@name='discount']"
+                position="before"
+            >
+                <field
+                    name="secef_discount_type"
+                    string="Type remise"
+                    optional="show"
+                    column_invisible="parent.move_type not in ('out_invoice', 'out_refund')"
+                />
+            </xpath>
+
+            <xpath
+                expr="//field[@name='invoice_line_ids']/list/field[@name='discount']"
+                position="attributes"
+            >
+                <attribute name="string">Rem. %</attribute>
+
+                <attribute name="readonly">
+                    secef_discount_type == 'fixed'
+                </attribute>
+            </xpath>
+
+            <xpath
+                expr="//field[@name='invoice_line_ids']/list/field[@name='discount']"
+                position="after"
+            >
+                <field
+                    name="secef_discount_amount"
+                    string="Remise montant"
+                    optional="show"
+                    readonly="secef_discount_type != 'fixed'"
+                    column_invisible="parent.move_type not in ('out_invoice', 'out_refund')"
+                />
+            </xpath>
+
+        </field>
+    </record>
+
+
+    <!-- =====================================================
+         STATUT SECeF DANS LISTE FACTURES / AVOIRS
+         ===================================================== -->
+
+    <record
+        id="view_invoice_tree_secef_status"
+        model="ir.ui.view"
+    >
+        <field name="name">
+            account.move.invoice.list.secef.status
+        </field>
+
+        <field name="model">
+            account.move
+        </field>
+
+        <field
+            name="inherit_id"
+            ref="account.view_invoice_tree"
+        />
+
+        <field name="arch" type="xml">
+
+            <xpath
+                expr="//field[@name='status_in_payment']"
+                position="after"
+            >
+                <field
+                    name="secef_list_status"
+                    string="Statut SECeF"
+                    widget="badge"
+                    optional="show"
+                    decoration-success="secef_list_status == 'certified'"
+                    decoration-muted="secef_list_status == 'not_certified'"
+                />
+            </xpath>
+
+        </field>
+    </record>
+
+</odoo>

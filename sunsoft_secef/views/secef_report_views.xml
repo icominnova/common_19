@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record
+        id="view_sunsoft_secef_report_list"
+        model="ir.ui.view"
+    >
+        <field name="name">
+            sunsoft.secef.report.list
+        </field>
+
+        <field name="model">sunsoft.secef.report</field>
+
+        <field name="arch" type="xml">
+            <list
+                create="false"
+                edit="false"
+                delete="false"
+            >
+                <field name="name"/>
+                <field name="report_type"/>
+                <field name="company_id"/>
+                <field name="isf"/>
+                <field name="period_start"/>
+                <field name="period_end"/>
+                <field name="generated_at"/>
+                <field name="state"/>
+            </list>
+        </field>
+    </record>
+
+
+    <record
+        id="view_sunsoft_secef_report_form"
+        model="ir.ui.view"
+    >
+        <field name="name">
+            sunsoft.secef.report.form
+        </field>
+
+        <field name="model">sunsoft.secef.report</field>
+
+        <field name="arch" type="xml">
+            <form
+                create="false"
+                edit="false"
+                delete="false"
+            >
+                <header>
+                    <button
+                        name="action_print_x"
+                        type="object"
+                        string="Imprimer PDF"
+                        class="oe_highlight"
+                        invisible="
+                            report_type not in
+                            ('x_daily', 'x_periodic')
+                        "
+                    />
+
+                    <button
+                        name="action_print_z"
+                        type="object"
+                        string="Imprimer PDF Z"
+                        class="oe_highlight"
+                        invisible="report_type != 'z'"
+                    />
+
+                    <button
+                        name="action_print_a"
+                        type="object"
+                        string="Imprimer PDF A"
+                        class="oe_highlight"
+                        invisible="report_type != 'a'"
+                    />
+
+                    <field
+                        name="state"
+                        widget="statusbar"
+                    />
+                </header>
+
+                <sheet>
+
+                    <div
+                        class="oe_title"
+                    >
+                        <h1>
+                            <field name="name"/>
+                        </h1>
+                    </div>
+
+                    <group>
+
+                        <group>
+                            <field
+                                name="report_type"
+                            />
+
+                            <field
+                                name="company_id"
+                            />
+
+                            <field
+                                name="isf"
+                            />
+
+                            <field
+                                name="generated_at"
+                            />
+                        </group>
+
+                        <group>
+                            <field
+                                name="period_start"
+                            />
+
+                            <field
+                                name="period_end"
+                            />
+
+                            <field
+                                name="previous_report_id"
+                            />
+                        </group>
+
+                    </group>
+
+                    <notebook>
+
+                        <page
+                            string="Factures"
+                        >
+                            <field
+                                name="move_ids"
+                                readonly="1"
+                            >
+                                <list>
+                                    <field name="name"/>
+                                    <field name="partner_id"/>
+                                    <field name="move_type"/>
+                                    <field name="secef_datetime"/>
+                                    <field name="amount_total"/>
+                                </list>
+                            </field>
+                        </page>
+
+                        <page
+                            string="Transactions"
+                        >
+                            <field
+                                name="transaction_ids"
+                                readonly="1"
+                            >
+                                <list>
+                                    <field name="request_uid"/>
+                                    <field name="move_id"/>
+                                    <field name="state"/>
+                                    <field name="completed_at"/>
+                                </list>
+                            </field>
+                        </page>
+
+                    </notebook>
+
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+
+    <record
+        id="action_sunsoft_secef_reports"
+        model="ir.actions.act_window"
+    >
+        <field name="name">
+            Rapports SECeF
+        </field>
+
+        <field name="res_model">sunsoft.secef.report</field>
+
+        <field name="view_mode">list,form</field>
+
+        <field name="domain">
+            [('report_type', 'in',
+              ('x_daily', 'x_periodic', 'z', 'a'))]
+        </field>
+
+        <field name="context">
+            {}
+        </field>
+    </record>
+
+
+    <menuitem
+        id="menu_sunsoft_secef_root"
+        name="SECeF"
+        parent="account.menu_finance_reports"
+        sequence="90"
+        groups="account.group_account_user,account.group_account_manager"
+    />
+
+    <menuitem
+        id="menu_sunsoft_secef_reports"
+        name="Rapports SECeF"
+        parent="menu_sunsoft_secef_root"
+        action="action_sunsoft_secef_reports"
+        sequence="10"
+        groups="account.group_account_user,account.group_account_manager"
+    />
+
+</odoo>

@@ -1,0 +1,9 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_sunsoft_secef_transaction_user,sunsoft.secef.transaction user,model_sunsoft_secef_transaction,account.group_account_invoice,1,0,0,0
+access_sunsoft_secef_transaction_manager,sunsoft.secef.transaction manager,model_sunsoft_secef_transaction,account.group_account_manager,1,1,1,0
+access_sunsoft_secef_report_account_user,sunsoft.secef.report accounting user,model_sunsoft_secef_report,account.group_account_user,1,0,0,0
+access_sunsoft_secef_report_wizard_user,sunsoft.secef.report.wizard user,model_sunsoft_secef_report_wizard,account.group_account_user,1,1,1,1
+access_sunsoft_secef_z_report_wizard_manager,sunsoft.secef.z.report.wizard manager,model_sunsoft_secef_z_report_wizard,account.group_account_manager,1,1,1,1
+access_sunsoft_secef_a_report_wizard_manager,sunsoft.secef.a.report.wizard manager,model_sunsoft_secef_a_report_wizard,account.group_account_manager,1,1,1,1
+access_sunsoft_secef_report_manager,sunsoft.secef.report manager,model_sunsoft_secef_report,account.group_account_manager,1,0,0,0
+access_sunsoft_secef_report_wizard_manager,sunsoft.secef.report.wizard manager,model_sunsoft_secef_report_wizard,account.group_account_manager,1,1,1,1

@@ -1,0 +1,88 @@
+from odoo import _, api, models
+from odoo.exceptions import UserError
+
+
+class AccountMoveLine(models.Model):
+    _inherit = "account.move.line"
+
+    def _check_secef_certified_move(self):
+        """Protège les lignes d'une facture SECeF certifiée."""
+
+        protected_lines = self.filtered(
+            lambda line:
+                line.move_id.move_type == "out_invoice"
+                and line.move_id.secef_state == "certified"
+        )
+
+        if protected_lines:
+            raise UserError(
+                _(
+                    "Cette ligne appartient à une facture déjà "
+                    "certifiée SECeF et ne peut plus être modifiée."
+                )
+            )
+
+    def write(self, vals):
+        protected_fields = {
+            "product_id",
+            "name",
+            "quantity",
+            "price_unit",
+            "discount",
+            "tax_ids",
+            "account_id",
+            "display_type",
+        }
+
+        if protected_fields.intersection(vals):
+            self._check_secef_certified_move()
+
+        return super().write(vals)
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        protected_fields = {
+            "product_id",
+            "name",
+            "quantity",
+            "price_unit",
+            "discount",
+            "tax_ids",
+            "account_id",
+            "display_type",
+        }
+
+        move_ids = {
+            vals.get("move_id")
+            for vals in vals_list
+            if vals.get("move_id")
+        }
+
+        if move_ids:
+            certified_moves = self.env["account.move"].browse(
+                list(move_ids)
+            ).filtered(
+                lambda move:
+                    move.move_type == "out_invoice"
+                    and move.secef_state == "certified"
+            )
+
+            certified_move_ids = set(certified_moves.ids)
+
+            for vals in vals_list:
+                if (
+                    vals.get("move_id") in certified_move_ids
+                    and protected_fields.intersection(vals)
+                ):
+                    raise UserError(
+                        _(
+                            "Impossible d'ajouter une ligne à une "
+                            "facture déjà certifiée SECeF."
+                        )
+                    )
+
+        return super().create(vals_list)
+
+    def unlink(self):
+        self._check_secef_certified_move()
+        return super().unlink()

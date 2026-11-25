@@ -1,0 +1,518 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record
+        id="action_report_secef_a"
+        model="ir.actions.report"
+    >
+        <field name="name">
+            Rapport A SECeF
+        </field>
+
+        <field name="model">sunsoft.secef.report</field>
+
+        <field name="report_type">qweb-pdf</field>
+
+        <field name="report_name">sunsoft_secef.report_secef_a_document</field>
+
+        <field name="report_file">sunsoft_secef.report_secef_a_document</field>
+
+        <field name="print_report_name">
+            'Rapport_A_SECeF_%s' % object.name.replace('/', '_')
+        </field>
+    </record>
+
+
+    <template
+        id="report_secef_a_document"
+    >
+        <t t-call="web.html_container">
+
+            <t
+                t-foreach="docs"
+                t-as="o"
+            >
+                <t t-call="web.external_layout">
+
+                    <div class="page">
+
+                        <t
+                            t-set="snapshot"
+                            t-value="o.snapshot_json or {}"
+                        />
+
+                        <t
+                            t-set="identity"
+                            t-value="
+                                snapshot.get(
+                                    'identity',
+                                    {}
+                                )
+                            "
+                        />
+
+                        <t
+                            t-set="period"
+                            t-value="
+                                snapshot.get(
+                                    'period',
+                                    {}
+                                )
+                            "
+                        />
+
+                        <h2 class="text-center">
+                            RAPPORT A SECeF
+                        </h2>
+
+                        <div class="text-center mb-3">
+                            <strong>
+                                A-RAPPORT
+                            </strong>
+                        </div>
+
+
+                        <table
+                            class="
+                                table
+                                table-sm
+                                table-bordered
+                            "
+                        >
+                            <tbody>
+
+                                <tr>
+                                    <th>Reference</th>
+
+                                    <td>
+                                        <span t-field="o.name"/>
+                                    </td>
+
+                                    <th>
+                                        Date et heure
+                                    </th>
+
+                                    <td>
+                                        <span
+                                            t-field="o.generated_at"
+                                        />
+                                    </td>
+                                </tr>
+
+                                <tr>
+                                    <th>
+                                        Nom commercial
+                                    </th>
+
+                                    <td>
+                                        <t
+                                            t-out="
+                                                identity.get(
+                                                    'commercial_name',
+                                                    ''
+                                                )
+                                            "
+                                        />
+                                    </td>
+
+                                    <th>IFU</th>
+
+                                    <td>
+                                        <t
+                                            t-out="
+                                                identity.get(
+                                                    'ifu',
+                                                    ''
+                                                )
+                                            "
+                                        />
+                                    </td>
+                                </tr>
+
+                                <tr>
+                                    <th>ISF</th>
+
+                                    <td>
+                                        <t
+                                            t-out="
+                                                identity.get(
+                                                    'isf',
+                                                    ''
+                                                )
+                                            "
+                                        />
+                                    </td>
+
+                                    <th>Periode</th>
+
+                                    <td>
+                                        <t
+                                            t-out="
+                                                period.get(
+                                                    'start',
+                                                    ''
+                                                )
+                                            "
+                                        />
+                                        -
+                                        <t
+                                            t-out="
+                                                period.get(
+                                                    'end',
+                                                    ''
+                                                )
+                                            "
+                                        />
+                                    </td>
+                                </tr>
+
+                            </tbody>
+                        </table>
+
+
+                        <h4>
+                            Resume par categorie
+                        </h4>
+
+                        <table
+                            class="
+                                table
+                                table-sm
+                                table-bordered
+                            "
+                        >
+                            <thead>
+                                <tr>
+                                    <th>
+                                        Categorie produit
+                                    </th>
+
+                                    <th class="text-end">
+                                        Vendue
+                                    </th>
+
+                                    <th class="text-end">
+                                        Retournee
+                                    </th>
+
+                                    <th class="text-end">
+                                        Montant collecte
+                                    </th>
+
+                                    <th class="text-end">
+                                        Montant retourne
+                                    </th>
+
+                                    <th class="text-end">
+                                        Net
+                                    </th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+
+                                <t
+                                    t-foreach="
+                                        snapshot.get(
+                                            'categories',
+                                            []
+                                        )
+                                    "
+                                    t-as="category"
+                                >
+                                    <tr>
+                                        <td>
+                                            <t
+                                                t-out="
+                                                    category.get(
+                                                        'category',
+                                                        ''
+                                                    )
+                                                "
+                                            />
+                                        </td>
+
+                                        <td class="text-end">
+                                            <t
+                                                t-out="
+                                                    category.get(
+                                                        'quantity_sold',
+                                                        '0.000'
+                                                    )
+                                                "
+                                            />
+                                        </td>
+
+                                        <td class="text-end">
+                                            <t
+                                                t-out="
+                                                    category.get(
+                                                        'quantity_returned',
+                                                        '0.000'
+                                                    )
+                                                "
+                                            />
+                                        </td>
+
+                                        <td class="text-end">
+                                            <t
+                                                t-out="
+                                                    category.get(
+                                                        'amount_collected',
+                                                        '0.00'
+                                                    )
+                                                "
+                                            />
+                                        </td>
+
+                                        <td class="text-end">
+                                            <t
+                                                t-out="
+                                                    category.get(
+                                                        'amount_returned',
+                                                        '0.00'
+                                                    )
+                                                "
+                                            />
+                                        </td>
+
+                                        <td class="text-end">
+                                            <t
+                                                t-out="
+                                                    category.get(
+                                                        'net_amount',
+                                                        '0.00'
+                                                    )
+                                                "
+                                            />
+                                        </td>
+                                    </tr>
+                                </t>
+
+                            </tbody>
+                        </table>
+
+
+                        <h4>
+                            Detail des articles
+                        </h4>
+
+                        <table
+                            class="
+                                table
+                                table-sm
+                                table-bordered
+                            "
+                        >
+                            <thead>
+                                <tr>
+                                    <th>Code</th>
+                                    <th>Article</th>
+                                    <th>Categorie produit</th>
+                                    <th>Type SECeF</th>
+
+                                    <th class="text-end">
+                                        Prix unitaire
+                                    </th>
+
+                                    <th class="text-end">
+                                        Taux
+                                    </th>
+
+                                    <th class="text-end">
+                                        Vendue
+                                    </th>
+
+                                    <th class="text-end">
+                                        Retournee
+                                    </th>
+
+                                    <th class="text-end">
+                                        Stock
+                                    </th>
+
+                                    <th class="text-end">
+                                        Collecte
+                                    </th>
+
+                                    <th class="text-end">
+                                        Retourne
+                                    </th>
+
+                                    <th class="text-end">
+                                        Net
+                                    </th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+
+                                <t
+                                    t-foreach="
+                                        snapshot.get(
+                                            'items',
+                                            []
+                                        )
+                                    "
+                                    t-as="item"
+                                >
+                                    <tr>
+
+                                        <td>
+                                            <t
+                                                t-out="
+                                                    item.get(
+                                                        'product_code',
+                                                        ''
+                                                    )
+                                                "
+                                            />
+                                        </td>
+
+                                        <td>
+                                            <t
+                                                t-out="
+                                                    item.get(
+                                                        'product_name',
+                                                        ''
+                                                    )
+                                                "
+                                            />
+                                        </td>
+
+                                        <td>
+                                            <t
+                                                t-out="
+                                                    item.get(
+                                                        'product_category',
+                                                        ''
+                                                    )
+                                                "
+                                            />
+                                        </td>
+
+                                        <td>
+                                            <t
+                                                t-out="
+                                                    item.get(
+                                                        'secef_item_type',
+                                                        ''
+                                                    )
+                                                "
+                                            />
+                                        </td>
+
+                                        <td class="text-end">
+                                            <t
+                                                t-out="
+                                                    item.get(
+                                                        'unit_price',
+                                                        '0.00'
+                                                    )
+                                                "
+                                            />
+                                        </td>
+
+                                        <td class="text-end">
+                                            <t
+                                                t-out="
+                                                    item.get(
+                                                        'tax_rate',
+                                                        '0'
+                                                    )
+                                                "
+                                            />
+                                            %
+                                        </td>
+
+                                        <td class="text-end">
+                                            <t
+                                                t-out="
+                                                    item.get(
+                                                        'quantity_sold',
+                                                        '0.000'
+                                                    )
+                                                "
+                                            />
+                                        </td>
+
+                                        <td class="text-end">
+                                            <t
+                                                t-out="
+                                                    item.get(
+                                                        'quantity_returned',
+                                                        '0.000'
+                                                    )
+                                                "
+                                            />
+                                        </td>
+
+                                        <td class="text-end">
+                                            <t
+                                                t-out="
+                                                    item.get(
+                                                        'quantity_in_stock',
+                                                        '0.000'
+                                                    )
+                                                "
+                                            />
+                                        </td>
+
+                                        <td class="text-end">
+                                            <t
+                                                t-out="
+                                                    item.get(
+                                                        'amount_collected',
+                                                        '0.00'
+                                                    )
+                                                "
+                                            />
+                                        </td>
+
+                                        <td class="text-end">
+                                            <t
+                                                t-out="
+                                                    item.get(
+                                                        'amount_returned',
+                                                        '0.00'
+                                                    )
+                                                "
+                                            />
+                                        </td>
+
+                                        <td class="text-end">
+                                            <t
+                                                t-out="
+                                                    item.get(
+                                                        'net_amount',
+                                                        '0.00'
+                                                    )
+                                                "
+                                            />
+                                        </td>
+
+                                    </tr>
+                                </t>
+
+                            </tbody>
+                        </table>
+
+
+                        <div class="mt-4">
+                            <small>
+                                Quantite en stock capturee
+                                au moment de la generation
+                                du rapport A et conservee
+                                dans le snapshot fiscal.
+                            </small>
+                        </div>
+
+                    </div>
+
+                </t>
+            </t>
+
+        </t>
+    </template>
+
+</odoo>

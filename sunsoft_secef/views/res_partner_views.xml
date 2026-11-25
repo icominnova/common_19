@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_partner_form_inherit_sunsoft_secef" model="ir.ui.view">
+        <field name="name">res.partner.form.sunsoft.secef</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+
+        <field name="arch" type="xml">
+
+            <field name="vat" position="attributes">
+                <attribute name="string">IFU</attribute>
+            </field>
+            <field name="vat" position="after">
+
+                <field
+                    name="company_registry"
+                    string="RCCM"
+                />
+
+                <field
+                    name="secef_customer_type"
+                    string="Type client SECeF"
+                />
+
+                <field
+                    name="secef_psvb_group"
+                    string="Groupe PSVB SECeF par défaut"
+                />
+
+            </field>
+        </field>
+    </record>
+
+</odoo>

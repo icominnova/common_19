@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record
+        id="res_config_settings_view_form_sunsoft_secef"
+        model="ir.ui.view"
+    >
+        <field name="name">res.config.settings.view.form.sunsoft.secef</field>
+
+        <field name="model">res.config.settings</field>
+
+        <field
+            name="inherit_id"
+            ref="account.res_config_settings_view_form"
+        />
+
+        <field name="arch" type="xml">
+
+            <xpath
+                expr="//app[@name='account']"
+                position="inside"
+            >
+
+                <block
+                    title="Sunsoft SECeF"
+                    id="sunsoft_secef_settings"
+                >
+
+                    <setting
+                        id="sunsoft_secef_enabled"
+                        string="Facturation électronique SECeF"
+                        help="Active la certification fiscale SECeF pour cette société."
+                        company_dependent="1"
+                    >
+                        <field name="secef_enabled"/>
+                    </setting>
+
+                    <setting
+                        id="sunsoft_secef_environment"
+                        string="Environnement"
+                        help="Sélectionnez l'environnement SECeF utilisé par cette société."
+                        company_dependent="1"
+                        invisible="not secef_enabled"
+                    >
+                        <field name="secef_environment"/>
+                    </setting>
+
+                    <setting
+                        id="sunsoft_secef_sfe_id"
+                        string="Identifiant SFE"
+                        help="Identifiant du Système de Facturation d'Entreprise."
+                        company_dependent="1"
+                        invisible="not secef_enabled"
+                    >
+                        <field
+                            name="secef_sfe_id"
+                            placeholder="Ex. SUNAPP"
+                        />
+                    </setting>
+
+                    <setting
+                        id="sunsoft_secef_tax_regime"
+                        string="Régime d'imposition"
+                        help="Régime fiscal applicable à cette société."
+                        company_dependent="1"
+                        invisible="not secef_enabled"
+                    >
+                        <field
+                            name="secef_tax_regime"
+                            placeholder="Ex. Réel normal"
+                        />
+                    </setting>
+
+                    <setting
+                        id="sunsoft_secef_tax_office"
+                        string="Service des impôts"
+                        help="Service ou centre des impôts de rattachement de cette société."
+                        company_dependent="1"
+                        invisible="not secef_enabled"
+                    >
+                        <field
+                            name="secef_tax_office"
+                            placeholder="Ex. Direction des Moyennes Entreprises"
+                        />
+                    </setting>
+
+                    <setting
+                        id="sunsoft_secef_central_url"
+                        string="Serveur central SECeF"
+                        help="Adresse HTTPS de la plateforme centrale Sunsoft SECeF."
+                        company_dependent="1"
+                        invisible="not secef_enabled"
+                    >
+                        <field
+                            name="secef_central_url"
+                            placeholder="https://secef.votre-domaine.com/"
+                        />
+                    </setting>
+
+                    <setting
+                        id="sunsoft_secef_central_api_token"
+                        string="Token API Odoo"
+                        help="Token Bearer attribué à cette société pour accéder à la plateforme centrale."
+                        company_dependent="1"
+                        invisible="not secef_enabled"
+                    >
+                        <field
+                            name="secef_central_api_token"
+                            password="True"
+                            placeholder="ssecf_odoo_..."
+                        />
+                    </setting>
+
+                    <setting
+                        id="sunsoft_secef_agent_uid"
+                        string="Agent Windows SECeF"
+                        help="UID de l'Agent Windows autorisé pour cette société."
+                        company_dependent="1"
+                        invisible="not secef_enabled"
+                    >
+                        <field
+                            name="secef_agent_uid"
+                            placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                        />
+                    </setting>
+
+                    <setting
+                        id="sunsoft_secef_http_timeout"
+                        string="Timeout HTTP"
+                        help="Durée maximale d'attente du serveur central, en secondes."
+                        company_dependent="1"
+                        invisible="not secef_enabled"
+                    >
+                        <field name="secef_http_timeout"/>
+                    </setting>
+
+                </block>
+
+            </xpath>
+
+        </field>
+    </record>
+
+</odoo>

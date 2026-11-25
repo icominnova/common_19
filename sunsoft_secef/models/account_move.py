@@ -1,0 +1,2782 @@
+import logging
+import uuid
+from decimal import Decimal, ROUND_HALF_UP
+
+from odoo import _, api, fields, models
+from odoo.exceptions import UserError
+
+from ..services.central_client import (
+    SecefCentralClient,
+    SecefCentralClientError,
+    SecefCentralHTTPError,
+    SecefCentralProtocolError,
+    SecefCentralTransportError,
+)
+
+
+_logger = logging.getLogger(__name__)
+
+
+class AccountMove(models.Model):
+    _inherit = "account.move"
+
+    # =========================================================
+    # Statut SECeF simplifié pour les listes
+    # =========================================================
+
+    secef_list_status = fields.Selection(
+        selection=[
+            (
+                "not_certified",
+                "Non certifié",
+            ),
+            (
+                "certified",
+                "Certifié",
+            ),
+        ],
+        string="Statut SECeF",
+        compute="_compute_secef_list_status",
+    )
+
+    @api.depends("secef_state")
+    def _compute_secef_list_status(self):
+        """
+        Statut volontairement simplifié pour les listes.
+
+        Les états techniques SECeF restent conservés dans
+        secef_state, mais l'utilisateur voit uniquement :
+        - Non certifié
+        - Certifié
+        """
+
+        for move in self:
+            move.secef_list_status = (
+                "certified"
+                if move.secef_state == "certified"
+                else "not_certified"
+            )
+
+    # =========================================================
+    # Champs SECeF
+    # =========================================================
+
+    secef_enabled = fields.Boolean(
+        related="company_id.secef_enabled",
+        string="SECeF activé",
+        readonly=True,
+    )
+
+    secef_state = fields.Selection(
+        selection=[
+            (
+                "not_certified",
+                "Non certifiée",
+            ),
+            (
+                "pending",
+                "En attente de certification",
+            ),
+            (
+                "processing",
+                "Certification en cours",
+            ),
+            (
+                "certified",
+                "Certifiée",
+            ),
+            (
+                "failed",
+                "Échec de certification",
+            ),
+            (
+                "unknown",
+                "Résultat de certification indéterminé",
+            ),
+        ],
+        string="Statut SECeF",
+        default="not_certified",
+        readonly=True,
+        copy=False,
+        index=True,
+    )
+
+    secef_mid = fields.Char(
+        string="MID",
+        readonly=True,
+        copy=False,
+    )
+
+    secef_signature = fields.Char(
+        string="Signature SECeF",
+        readonly=True,
+        copy=False,
+    )
+
+    secef_datetime = fields.Datetime(
+        string="Date de certification SECeF",
+        readonly=True,
+        copy=False,
+    )
+
+    secef_qr_data = fields.Text(
+        string="Données QR SECeF",
+        readonly=True,
+        copy=False,
+    )
+
+    secef_fiscal_counter = fields.Integer(
+        string="Compteur fiscal",
+        readonly=True,
+        copy=False,
+    )
+
+    secef_total_counter = fields.Integer(
+        string="Compteur total MCF",
+        readonly=True,
+        copy=False,
+    )
+
+    secef_error_message = fields.Text(
+        string="Dernière erreur SECeF",
+        readonly=True,
+        copy=False,
+    )
+
+    secef_refund_reason = fields.Selection(
+        selection=[
+            ("COR", "Correction"),
+            ("RAN", "Annulation"),
+            ("RAM", "Reprise de biens/services"),
+            ("RRR", "Remise, ristourne, rabais"),
+        ],
+        string="Nature de l'avoir SECeF",
+        copy=False,
+    )
+
+    secef_reference_number = fields.Char(
+        string="Référence facture d'origine SECeF",
+        copy=False,
+    )
+
+    secef_sale_type = fields.Selection(
+        selection=[
+            ("local", "Locale"),
+            ("export", "Exportation"),
+        ],
+        string="Type de vente SECeF",
+        default="local",
+        required=True,
+    )
+
+    secef_effective_sale_type = fields.Selection(
+        selection=[
+            ("local", "Locale"),
+            ("export", "Exportation"),
+        ],
+        string="Type de vente SECeF effectif",
+        compute="_compute_secef_effective_sale_type",
+    )
+
+    secef_psvb_group = fields.Selection(
+        selection=[
+            ("A", "Groupe A - 2 %"),
+            ("B", "Groupe B - 1 %"),
+            ("C", "Groupe C - 0,2 %"),
+            ("D", "Groupe D - 0 %"),
+        ],
+        string="Groupe PSVB SECeF",
+        copy=False,
+        help=(
+            "Groupe PSVB appliqué à cette facture. "
+            "La valeur du client est copiée lors "
+            "de la création de la facture et peut "
+            "être modifiée avant certification."
+        ),
+    )
+
+    secef_psvb_rate = fields.Float(
+        string="Taux PSVB (%)",
+        compute="_compute_secef_psvb",
+        digits=(6, 3),
+    )
+
+    secef_psvb_amount = fields.Monetary(
+        string="Montant PSVB",
+        compute="_compute_secef_psvb",
+        currency_field="currency_id",
+    )
+
+    secef_total_with_psvb = fields.Monetary(
+        string="Total à payer avec PSVB",
+        compute="_compute_secef_psvb",
+        currency_field="currency_id",
+    )
+
+    # Champs d'affichage à 2 décimales.
+    # Ils sont volontairement indépendants de l'arrondi monétaire XOF
+    # afin de refléter exactement les montants fiscaux SECeF.
+    secef_psvb_amount_display = fields.Float(
+        string="Montant PSVB",
+        compute="_compute_secef_psvb",
+        digits=(16, 2),
+    )
+
+    secef_total_with_psvb_display = fields.Float(
+        string="Total à payer avec PSVB",
+        compute="_compute_secef_psvb",
+        digits=(16, 2),
+    )
+
+    secef_comment_a_label = fields.Char(
+        string="Étiquette SECeF A",
+        size=255,
+        copy=False,
+    )
+
+    secef_comment_a = fields.Char(
+        string="Contenu SECeF A",
+        size=255,
+        copy=False,
+    )
+
+    secef_comment_b_label = fields.Char(
+        string="Étiquette SECeF B",
+        size=255,
+        copy=False,
+    )
+
+    secef_comment_b = fields.Char(
+        string="Contenu SECeF B",
+        size=255,
+        copy=False,
+    )
+
+    secef_comment_c_label = fields.Char(
+        string="Étiquette SECeF C",
+        size=255,
+        copy=False,
+    )
+
+    secef_comment_c = fields.Char(
+        string="Contenu SECeF C",
+        size=255,
+        copy=False,
+    )
+
+    secef_comment_d_label = fields.Char(
+        string="Étiquette SECeF D",
+        size=255,
+        copy=False,
+    )
+
+    secef_comment_d = fields.Char(
+        string="Contenu SECeF D",
+        size=255,
+        copy=False,
+    )
+
+    secef_comment_e_label = fields.Char(
+        string="Étiquette SECeF E",
+        size=255,
+        copy=False,
+    )
+
+    secef_comment_e = fields.Char(
+        string="Contenu SECeF E",
+        size=255,
+        copy=False,
+    )
+
+    secef_comment_f_label = fields.Char(
+        string="Étiquette SECeF F",
+        size=255,
+        copy=False,
+    )
+
+    secef_comment_f = fields.Char(
+        string="Contenu SECeF F",
+        size=255,
+        copy=False,
+    )
+
+    secef_comment_g_label = fields.Char(
+        string="Étiquette SECeF G",
+        size=255,
+        copy=False,
+    )
+
+    secef_comment_g = fields.Char(
+        string="Contenu SECeF G",
+        size=255,
+        copy=False,
+    )
+
+    secef_comment_h_label = fields.Char(
+        string="Étiquette SECeF H",
+        size=255,
+        copy=False,
+    )
+
+    secef_comment_h = fields.Char(
+        string="Contenu SECeF H",
+        size=255,
+        copy=False,
+    )
+
+    secef_transaction_ids = fields.One2many(
+        comodel_name="sunsoft.secef.transaction",
+        inverse_name="move_id",
+        string="Transactions SECeF",
+        readonly=True,
+        copy=False,
+    )
+
+    secef_agent_last_seen_at = fields.Datetime(
+        related="company_id.secef_agent_last_seen_at",
+        string="Dernière connexion Agent SECeF",
+        readonly=True,
+    )
+
+    secef_agent_connection_alert = fields.Boolean(
+        related="company_id.secef_agent_connection_alert",
+        string="Alerte connexion Agent SECeF",
+        readonly=True,
+    )
+
+    @api.depends(
+        "secef_sale_type",
+        "move_type",
+        "reversed_entry_id",
+        "reversed_entry_id.secef_sale_type",
+    )
+    def _compute_secef_effective_sale_type(
+        self,
+    ):
+        for move in self:
+            if (
+                move.move_type == "out_refund"
+                and move.reversed_entry_id
+            ):
+                move.secef_effective_sale_type = (
+                    move.reversed_entry_id.secef_sale_type
+                    or "local"
+                )
+            else:
+                move.secef_effective_sale_type = (
+                    move.secef_sale_type
+                    or "local"
+                )
+
+    @api.model_create_multi
+    def create(
+        self,
+        vals_list,
+    ):
+        prepared_vals = []
+
+        for vals in vals_list:
+            values = dict(vals)
+
+            move_type = (
+                values.get("move_type")
+                or self.env.context.get(
+                    "default_move_type"
+                )
+            )
+
+            partner_id = values.get(
+                "partner_id"
+            )
+
+            if (
+                "secef_psvb_group"
+                not in values
+                and move_type == "out_invoice"
+                and partner_id
+            ):
+                partner = self.env[
+                    "res.partner"
+                ].browse(
+                    partner_id
+                )
+
+                values[
+                    "secef_psvb_group"
+                ] = (
+                    partner.secef_psvb_group
+                    or False
+                )
+
+            prepared_vals.append(
+                values
+            )
+
+        return super().create(
+            prepared_vals
+        )
+
+    @api.onchange("partner_id")
+    def _onchange_secef_psvb_partner(
+        self,
+    ):
+        for move in self:
+            if (
+                move.move_type
+                == "out_invoice"
+                and move.secef_state
+                in (
+                    "not_certified",
+                    "failed",
+                )
+            ):
+                move.secef_psvb_group = (
+                    move.partner_id.secef_psvb_group
+                    or False
+                )
+
+            elif (
+                move.move_type
+                == "out_refund"
+            ):
+                move.secef_psvb_group = False
+
+    @api.depends(
+        "amount_total",
+        "move_type",
+        "secef_psvb_group",
+    )
+    def _compute_secef_psvb(
+        self,
+    ):
+        rates = {
+            "A": Decimal("2"),
+            "B": Decimal("1"),
+            "C": Decimal("0.2"),
+            "D": Decimal("0"),
+        }
+
+        for move in self:
+            group = (
+                move.secef_psvb_group
+                if (
+                    move.move_type
+                    == "out_invoice"
+                )
+                else False
+            )
+
+            rate = (
+                rates.get(
+                    group,
+                    Decimal("0"),
+                )
+                if group
+                else Decimal("0")
+            )
+
+            total_ttc = Decimal(
+                str(
+                    move.amount_total
+                    or 0
+                )
+            )
+
+            psvb_amount = (
+                total_ttc
+                * rate
+                / Decimal("100")
+            ).quantize(
+                Decimal("0.01"),
+                rounding=ROUND_HALF_UP,
+            )
+
+            total_with_psvb = (
+                total_ttc
+                + psvb_amount
+            ).quantize(
+                Decimal("0.01"),
+                rounding=ROUND_HALF_UP,
+            )
+
+            move.secef_psvb_rate = float(
+                rate
+            )
+
+            move.secef_psvb_amount = float(
+                psvb_amount
+            )
+
+            move.secef_total_with_psvb = float(
+                total_with_psvb
+            )
+
+            # Affichage fiscal exact à 2 décimales.
+            # Ne passe pas par fields.Monetary / arrondi XOF.
+            move.secef_psvb_amount_display = float(
+                psvb_amount
+            )
+
+            move.secef_total_with_psvb_display = float(
+                total_with_psvb
+            )
+
+    def _get_secef_comments_payload(self):
+        self.ensure_one()
+
+        comments = {}
+
+        for field_id in "ABCDEFGH":
+            field_name = (
+                f"secef_comment_{field_id.lower()}"
+            )
+
+            content = (
+                self[field_name] or ""
+            ).strip()
+
+            if content:
+                comments[field_id] = content
+
+        return comments
+
+    def _get_secef_extra_info_payload(self):
+        self.ensure_one()
+
+        company = self.company_id
+
+        extra_info = {}
+
+        tax_regime = (
+            company.secef_tax_regime or ""
+        ).strip()
+
+        if tax_regime:
+            extra_info["REGIMP"] = tax_regime
+
+        tax_office = (
+            company.secef_tax_office or ""
+        ).strip()
+
+        if tax_office:
+            extra_info["SERIMP"] = tax_office
+
+        if self.partner_bank_id:
+            bank_reference = (
+                self.partner_bank_id.acc_number or ""
+            ).strip()
+
+            if bank_reference:
+                extra_info["COMBAN"] = bank_reference
+
+        return extra_info
+    # =========================================================
+    # Indicateurs techniques pour l'interface
+    # =========================================================
+
+    secef_can_dispatch = fields.Boolean(
+        string="Peut envoyer SECeF",
+        compute="_compute_secef_action_flags",
+    )
+
+    secef_can_sync = fields.Boolean(
+        string="Peut synchroniser SECeF",
+        compute="_compute_secef_action_flags",
+    )
+
+    @api.depends(
+        "secef_state",
+        "secef_transaction_ids.state",
+        "secef_transaction_ids.central_job_uid",
+    )
+    def _compute_secef_action_flags(
+        self,
+    ):
+        """
+        Détermine les actions SECeF disponibles.
+
+        - pending sans central_job_uid :
+          possibilité d'envoyer vers le serveur central.
+
+        - pending ou processing avec central_job_uid :
+          possibilité de synchroniser l'état central.
+        """
+
+        for move in self:
+            move.secef_can_dispatch = False
+            move.secef_can_sync = False
+
+            active_transaction = (
+                move.secef_transaction_ids
+                .filtered(
+                    lambda transaction:
+                        transaction.state
+                        in (
+                            "pending",
+                            "processing",
+                        )
+                )[:1]
+            )
+
+            if not active_transaction:
+                continue
+
+            if (
+                active_transaction.state
+                == "pending"
+                and not (
+                    active_transaction
+                    .central_job_uid
+                )
+            ):
+                move.secef_can_dispatch = True
+
+            if (
+                active_transaction
+                .central_job_uid
+                and active_transaction.state
+                in (
+                    "pending",
+                    "processing",
+                )
+            ):
+                move.secef_can_sync = True
+
+    # =========================================================
+    # Configuration centrale
+    # =========================================================
+
+    def _get_secef_central_configuration(
+        self,
+    ):
+        """
+        Valide la configuration centrale sans effectuer
+        aucune communication réseau.
+        """
+
+        self.ensure_one()
+
+        company = self.company_id
+
+        central_url = (
+            company.secef_central_url
+            or ""
+        ).strip()
+
+        if not central_url:
+            raise UserError(
+                _(
+                    "L'URL du serveur central SECeF "
+                    "n'est pas configurée."
+                )
+            )
+
+        if not (
+            central_url.startswith(
+                "http://"
+            )
+            or central_url.startswith(
+                "https://"
+            )
+        ):
+            raise UserError(
+                _(
+                    "L'URL du serveur central SECeF "
+                    "doit commencer par http:// "
+                    "ou https://."
+                )
+            )
+
+        api_token = (
+            company.secef_central_api_token
+            or ""
+        ).strip()
+
+        if not api_token:
+            raise UserError(
+                _(
+                    "Le token API Odoo SECeF "
+                    "n'est pas configuré."
+                )
+            )
+
+        agent_uid = (
+            company.secef_agent_uid
+            or ""
+        ).strip()
+
+        if not agent_uid:
+            raise UserError(
+                _(
+                    "L'UID de l'Agent Windows SECeF "
+                    "n'est pas configuré."
+                )
+            )
+
+        timeout = (
+            company.secef_http_timeout
+            or 10.0
+        )
+
+        if timeout <= 0:
+            raise UserError(
+                _(
+                    "Le délai HTTP SECeF doit être "
+                    "strictement supérieur à zéro."
+                )
+            )
+
+        return {
+            "central_url":
+                central_url,
+
+            "api_token":
+                api_token,
+
+            "agent_uid":
+                agent_uid,
+
+            "timeout":
+                timeout,
+        }
+
+    def _get_secef_central_client(
+        self,
+    ):
+        """
+        Construit le client HTTP vers la plateforme
+        centrale SECeF.
+        """
+
+        self.ensure_one()
+
+        configuration = (
+            self._get_secef_central_configuration()
+        )
+
+        try:
+            return SecefCentralClient(
+                base_url=configuration[
+                    "central_url"
+                ],
+                api_token=configuration[
+                    "api_token"
+                ],
+                timeout=configuration[
+                    "timeout"
+                ],
+            )
+
+        except ValueError as exc:
+            raise UserError(
+                _(
+                    "La configuration du serveur "
+                    "central SECeF est invalide : %s"
+                )
+                % str(exc)
+            ) from exc
+
+    # =========================================================
+    # Construction du payload invoice.certify
+    # =========================================================
+
+    def _prepare_secef_payload(
+        self,
+    ):
+        """
+        Construit exactement le CertificationPayload
+        attendu par l'Agent Windows.
+        """
+
+        self.ensure_one()
+
+        company = self.company_id
+
+        partner = (
+            self.partner_id
+            .commercial_partner_id
+        )
+
+        user = self.env.user
+
+        # -----------------------------------------------------
+        # Contrôles facture
+        # -----------------------------------------------------
+
+        if not company.secef_enabled:
+            raise UserError(
+                _(
+                    "SECeF n'est pas activé "
+                    "pour cette société."
+                )
+            )
+
+        if self.state != "posted":
+            raise UserError(
+                _(
+                    "La facture doit être confirmée "
+                    "avant la certification SECeF."
+                )
+            )
+
+        if self.move_type not in ("out_invoice", "out_refund"):
+            raise UserError(
+                _("Seules les factures clients et les avoirs clients peuvent être certifiés SECeF.")
+            )
+
+        is_refund = self.move_type == "out_refund"
+
+        sale_type = (
+            self.secef_effective_sale_type
+            or "local"
+        )
+
+        is_export = (
+            sale_type == "export"
+        )
+
+        if is_refund:
+            invoice_type = (
+                "EA"
+                if is_export
+                else "FA"
+            )
+        elif self._is_downpayment():
+            invoice_type = (
+                "ET"
+                if is_export
+                else "FT"
+            )
+        else:
+            invoice_type = (
+                "EV"
+                if is_export
+                else "FV"
+            )
+        refund_reason = False
+        reference_number = False
+
+        if is_refund:
+            if not self.secef_refund_reason:
+                raise UserError(
+                    _("Veuillez sélectionner la nature SECeF de l'avoir.")
+                )
+
+            refund_reason = self.secef_refund_reason
+
+            if refund_reason != "RRR":
+                original_invoice = self.reversed_entry_id
+
+                if original_invoice:
+                    original_mid = (
+                        original_invoice.secef_mid
+                        or ""
+                    ).strip()
+
+                    original_total_counter = (
+                        original_invoice.secef_total_counter
+                    )
+
+                    if (
+                        not original_mid
+                        or not original_total_counter
+                    ):
+                        raise UserError(
+                            _(
+                                "La facture d'origine doit disposer "
+                                "de son MID et de son compteur total "
+                                "MCF SECeF."
+                            )
+                        )
+
+                    reference_number = (
+                        f"{original_mid}-"
+                        f"{original_total_counter}"
+                    )
+
+                else:
+                    reference_number = (
+                        self.secef_reference_number
+                        or ""
+                    ).strip()
+
+                if not reference_number:
+                    raise UserError(
+                        _(
+                            "La référence de la facture d'origine "
+                            "est obligatoire pour cet avoir SECeF."
+                        )
+                    )
+
+        if not company.secef_sfe_id:
+            raise UserError(
+                _(
+                    "L'identifiant SFE "
+                    "n'est pas configuré."
+                )
+            )
+
+        company_ifu = (
+            company.vat
+            or ""
+        ).strip()
+
+        if not company_ifu:
+            raise UserError(
+                _(
+                    "L'IFU de la société n'est pas "
+                    "configuré dans le champ fiscal."
+                )
+            )
+
+        if (
+            not self.name
+            or self.name == "/"
+        ):
+            raise UserError(
+                _(
+                    "La facture ne possède pas encore "
+                    "de numéro définitif."
+                )
+            )
+
+        invoice_number = (
+            self.name.strip()
+        )
+
+        if len(invoice_number) > 32:
+            raise UserError(
+                _(
+                    "Le numéro de facture SECeF "
+                    "ne doit pas dépasser "
+                    "32 caractères."
+                )
+            )
+
+        # -----------------------------------------------------
+        # Contrôles client
+        # -----------------------------------------------------
+
+        if not partner.secef_customer_type:
+            raise UserError(
+                _(
+                    "Le type client SECeF "
+                    "n'est pas configuré "
+                    "pour le client %s."
+                )
+                % partner.display_name
+            )
+
+        # -----------------------------------------------------
+        # Lignes
+        # -----------------------------------------------------
+
+        invoice_lines = (
+            self.invoice_line_ids.filtered(
+                lambda line:
+                    line.display_type
+                    == "product"
+            )
+        )
+
+        if not invoice_lines:
+            raise UserError(
+                _(
+                    "La facture ne contient "
+                    "aucun article à certifier."
+                )
+            )
+
+        items = []
+
+        # Metadonnees strictement locales Odoo.
+        # Elles ne doivent jamais etre transmises
+        # a l'Agent ni au MCF.
+        item_local_metadata = []
+
+        price_include_values = set()
+
+        # -----------------------------------------------------
+        # Solde fiscal apres acompte
+        # -----------------------------------------------------
+        #
+        # Odoo conserve la ligne negative d'acompte pour sa
+        # logique comptable. Cette ligne ne doit cependant
+        # jamais etre transmise au MCF : le protocole 31h
+        # n'accepte pas une quantite negative.
+        #
+        # On repartit donc chaque deduction sur les lignes
+        # positives du meme groupe de taxe. Le total fiscal
+        # reste strictement egal au solde de la facture.
+        # -----------------------------------------------------
+
+        balance_adjustments = {}
+
+        downpayment_deductions = (
+            invoice_lines.filtered(
+                lambda invoice_line:
+                    invoice_line.is_downpayment
+                    and invoice_line.quantity < 0
+            )
+        )
+
+        if downpayment_deductions:
+            currency = self.currency_id
+            fiscal_groups = {}
+
+            for balance_line in invoice_lines:
+                taxes = balance_line.tax_ids
+
+                if len(taxes) != 1:
+                    raise UserError(
+                        _(
+                            "La ligne '%s' doit avoir "
+                            "exactement une taxe SECeF."
+                        )
+                        % balance_line.name
+                    )
+
+                balance_tax = taxes[0]
+
+                if balance_tax.amount_type != "percent":
+                    raise UserError(
+                        _(
+                            "La taxe '%s' doit etre une taxe "
+                            "en pourcentage pour SECeF."
+                        )
+                        % balance_tax.display_name
+                    )
+
+                if not balance_tax.secef_tax_group:
+                    raise UserError(
+                        _(
+                            "Le groupe SECeF n'est pas "
+                            "configure pour la taxe '%s'."
+                        )
+                        % balance_tax.display_name
+                    )
+
+                group = fiscal_groups.setdefault(
+                    balance_tax.id,
+                    {
+                        "positive_lines": [],
+                        "positive_total": 0.0,
+                        "positive_base": 0.0,
+                        "deduction_total": 0.0,
+                        "deduction_base": 0.0,
+                    },
+                )
+
+                if balance_line in downpayment_deductions:
+                    if (
+                        balance_line.price_total >= 0
+                        or balance_line.price_subtotal >= 0
+                    ):
+                        raise UserError(
+                            _(
+                                "La deduction d'acompte '%s' "
+                                "possede des montants incoherents."
+                            )
+                            % balance_line.name
+                        )
+
+                    group["deduction_total"] += (
+                        -balance_line.price_total
+                    )
+                    group["deduction_base"] += (
+                        -balance_line.price_subtotal
+                    )
+
+                    continue
+
+                if balance_line.quantity <= 0:
+                    raise UserError(
+                        _(
+                            "La quantite de la ligne '%s' "
+                            "doit etre superieure a zero."
+                        )
+                        % balance_line.name
+                    )
+
+                if (
+                    balance_line.price_total <= 0
+                    or balance_line.price_subtotal <= 0
+                ):
+                    raise UserError(
+                        _(
+                            "Le montant de la ligne '%s' "
+                            "doit etre superieur a zero."
+                        )
+                        % balance_line.name
+                    )
+
+                group["positive_lines"].append(
+                    balance_line
+                )
+                group["positive_total"] += (
+                    balance_line.price_total
+                )
+                group["positive_base"] += (
+                    balance_line.price_subtotal
+                )
+
+            for group in fiscal_groups.values():
+                deduction_total = (
+                    group["deduction_total"]
+                )
+                deduction_base = (
+                    group["deduction_base"]
+                )
+
+                if (
+                    not deduction_total
+                    and not deduction_base
+                ):
+                    continue
+
+                positive_lines = (
+                    group["positive_lines"]
+                )
+
+                if not positive_lines:
+                    raise UserError(
+                        _(
+                            "Une deduction d'acompte ne "
+                            "correspond a aucune ligne "
+                            "positive du meme groupe fiscal."
+                        )
+                    )
+
+                positive_total = (
+                    group["positive_total"]
+                )
+                positive_base = (
+                    group["positive_base"]
+                )
+
+                target_total = currency.round(
+                    positive_total
+                    - deduction_total
+                )
+
+                target_base = currency.round(
+                    positive_base
+                    - deduction_base
+                )
+
+                if (
+                    (
+                        target_total < 0
+                        and not currency.is_zero(
+                            target_total
+                        )
+                    )
+                    or (
+                        target_base < 0
+                        and not currency.is_zero(
+                            target_base
+                        )
+                    )
+                ):
+                    raise UserError(
+                        _(
+                            "Le montant de l'acompte depasse "
+                            "le montant positif disponible "
+                            "dans son groupe fiscal."
+                        )
+                    )
+
+                if currency.is_zero(target_total):
+                    target_total = 0.0
+
+                if currency.is_zero(target_base):
+                    target_base = 0.0
+
+                remaining_total = target_total
+                remaining_base = target_base
+
+                for index, balance_line in enumerate(
+                    positive_lines
+                ):
+                    is_last = (
+                        index
+                        == len(positive_lines) - 1
+                    )
+
+                    if is_last:
+                        adjusted_total = (
+                            remaining_total
+                        )
+                        adjusted_base = (
+                            remaining_base
+                        )
+                    else:
+                        adjusted_total = currency.round(
+                            target_total
+                            * balance_line.price_total
+                            / positive_total
+                        )
+
+                        adjusted_base = currency.round(
+                            target_base
+                            * balance_line.price_subtotal
+                            / positive_base
+                        )
+
+                        remaining_total = (
+                            currency.round(
+                                remaining_total
+                                - adjusted_total
+                            )
+                        )
+
+                        remaining_base = (
+                            currency.round(
+                                remaining_base
+                                - adjusted_base
+                            )
+                        )
+
+                    balance_adjustments[
+                        balance_line.id
+                    ] = (
+                        adjusted_total,
+                        adjusted_base,
+                    )
+
+        for line in invoice_lines:
+            if line in downpayment_deductions:
+                continue
+
+            product = line.product_id
+
+            item_type = False
+            internal_code = None
+
+            if product:
+                template = (
+                    product.product_tmpl_id
+                )
+
+                if not template.secef_item_type:
+                    raise UserError(
+                        _(
+                            "Le type article SECeF "
+                            "n'est pas configuré pour "
+                            "le produit '%s'."
+                        )
+                        % product.display_name
+                    )
+
+                item_type = (
+                    template.secef_item_type
+                )
+
+                internal_code = (
+                    product.default_code
+                    or None
+                )
+
+            elif line.is_downpayment:
+                sale_orders = (
+                    line.sale_line_ids
+                    .mapped("order_id")
+                )
+
+                source_lines = (
+                    sale_orders
+                    .mapped("order_line")
+                    .filtered(
+                        lambda sale_line:
+                            not sale_line.is_downpayment
+                            and sale_line.product_id
+                    )
+                )
+
+                if not source_lines:
+                    raise UserError(
+                        _(
+                            "Impossible de déterminer "
+                            "le type article SECeF de "
+                            "l'acompte '%s'."
+                        )
+                        % line.name
+                    )
+
+                missing_type_lines = (
+                    source_lines.filtered(
+                        lambda sale_line:
+                            not sale_line.product_id
+                            .product_tmpl_id
+                            .secef_item_type
+                    )
+                )
+
+                if missing_type_lines:
+                    raise UserError(
+                        _(
+                            "Le type article SECeF "
+                            "n'est pas configuré pour "
+                            "tous les produits de la "
+                            "commande liée à l'acompte."
+                        )
+                    )
+
+                item_types = set(
+                    source_lines.mapped(
+                        "product_id."
+                        "product_tmpl_id."
+                        "secef_item_type"
+                    )
+                )
+
+                if len(item_types) != 1:
+                    raise UserError(
+                        _(
+                            "La ligne d'acompte "
+                            "concerne plusieurs types "
+                            "d'articles SECeF. "
+                            "La certification SECeF ne "
+                            "peut pas déterminer un "
+                            "type article unique."
+                        )
+                    )
+
+                item_type = next(
+                    iter(item_types)
+                )
+
+            else:
+                raise UserError(
+                    _(
+                        "La ligne '%s' ne possède "
+                        "aucun produit."
+                    )
+                    % line.name
+                )
+
+            taxes = line.tax_ids
+
+            if len(taxes) != 1:
+                raise UserError(
+                    _(
+                        "La ligne '%s' doit avoir "
+                        "exactement une taxe SECeF."
+                    )
+                    % line.name
+                )
+
+            tax = taxes[0]
+
+            if tax.amount_type != "percent":
+                raise UserError(
+                    _(
+                        "La taxe '%s' doit être "
+                        "une taxe en pourcentage "
+                        "pour SECeF."
+                    )
+                    % tax.display_name
+                )
+
+            if not tax.secef_tax_group:
+                raise UserError(
+                    _(
+                        "Le groupe SECeF n'est pas "
+                        "configuré pour la taxe '%s'."
+                    )
+                    % tax.display_name
+                )
+
+            if line.quantity <= 0:
+                raise UserError(
+                    _(
+                        "La quantité de la ligne '%s' "
+                        "doit être supérieure à zéro."
+                    )
+                    % line.name
+                )
+
+            price_include_values.add(
+                bool(
+                    tax.price_include
+                )
+            )
+
+            # Montant fiscal de la ligne.
+            amount = (
+                line.price_total
+            )
+
+            adjusted = balance_adjustments.get(
+                line.id
+            )
+
+            if adjusted is not None:
+                adjusted_total, adjusted_base = (
+                    adjusted
+                )
+
+                amount = adjusted_total
+
+                unit_amount = (
+                    adjusted_total
+                    if tax.price_include
+                    else adjusted_base
+                )
+            else:
+                unit_amount = (
+                    line.price_total
+                    if tax.price_include
+                    else line.price_subtotal
+                )
+
+            if (
+                self.currency_id.is_zero(amount)
+                and self.currency_id.is_zero(
+                    unit_amount
+                )
+            ):
+                # Groupe totalement couvert par
+                # l'acompte : rien a fiscaliser.
+                continue
+
+            if amount <= 0 or unit_amount <= 0:
+                raise UserError(
+                    _(
+                        "Le montant fiscal de la ligne '%s' "
+                        "doit etre superieur a zero."
+                    )
+                    % line.name
+                )
+
+            unit_price = (
+                unit_amount
+                / line.quantity
+            )
+
+            # -------------------------------------------------
+            # Changement de prix / remise SECeF
+            # PRORIG + PRDESC
+            # -------------------------------------------------
+
+            price_change = {}
+
+            if (
+                adjusted is None
+                and not line.is_downpayment
+            ):
+                discount_rate = (
+                    line.discount
+                    or 0.0
+                )
+
+                if discount_rate > 0:
+                    original_price = (
+                        line.price_unit
+                        or 0.0
+                    )
+
+                    if original_price <= 0:
+                        raise UserError(
+                            _(
+                                "Le prix d'origine de "
+                                "la ligne '%s' doit être "
+                                "supérieur à zéro."
+                            )
+                            % line.name
+                        )
+
+                    if (
+                        line.secef_discount_type
+                        == "fixed"
+                    ):
+                        fixed_amount = (
+                            line.secef_discount_amount
+                            or 0.0
+                        )
+
+                        description = (
+                            "Remise %s CFA"
+                            % self._secef_number(
+                                fixed_amount
+                            )
+                        )
+
+                    else:
+                        rate_text = (
+                            "%.4f"
+                            % discount_rate
+                        ).rstrip(
+                            "0"
+                        ).rstrip(
+                            "."
+                        )
+
+                        description = (
+                            "Remise %s%%"
+                            % rate_text
+                        )
+
+                    if len(description) > 24:
+                        raise UserError(
+                            _(
+                                "La description SECeF "
+                                "de la remise '%s' "
+                                "dépasse 24 caractères."
+                            )
+                            % description
+                        )
+
+                    price_change = {
+                        "original_price":
+                            self._secef_amount(
+                                original_price
+                            ),
+                        "price_change_description":
+                            description,
+                    }
+
+            if unit_price <= 0:
+                raise UserError(
+                    _(
+                        "Le prix unitaire fiscal de la "
+                        "ligne '%s' doit etre superieur "
+                        "a zero."
+                    )
+                    % line.name
+                )
+
+            # Les acomptes Odoo peuvent être éclatés en plusieurs
+            # lignes selon le groupe fiscal (A, B, ...), tout en
+            # conservant exactement le même libellé. Le MCF doit
+            # pouvoir distinguer ces lignes lors des commandes 31h.
+            if line.is_downpayment:
+                internal_code = (
+                    "ACOMPTE-%s"
+                    % tax.secef_tax_group
+                )
+
+            item_name = (
+                line.name
+                or product.display_name
+                or ""
+            ).strip()
+
+            # Les lignes d'acompte Odoo peuvent avoir exactement
+            # le même libellé lorsqu'elles sont ventilées sur
+            # plusieurs groupes fiscaux. Le MCF refuse alors le
+            # second article 31h comme article déjà soumis.
+            #
+            # Le suffixe du groupe fiscal rend le NOM transmis au
+            # MCF unique sans modifier le libellé comptable Odoo.
+            if line.is_downpayment:
+                item_name = "%s - %s" % (
+                    item_name,
+                    tax.secef_tax_group,
+                )
+
+            if not item_name:
+                raise UserError(
+                    _(
+                        "Une ligne de facture possède "
+                        "un libellé SECeF vide."
+                    )
+                )
+
+            if len(item_name) > 255:
+                raise UserError(
+                    _(
+                        "Le libellé de l'article '%s' "
+                        "dépasse 255 caractères."
+                    )
+                    % item_name
+                )
+
+            item = {
+                "name":
+                    item_name,
+
+                "internal_code":
+                    internal_code,
+
+                "item_type":
+                    item_type,
+
+                "tax_group":
+                    tax.secef_tax_group,
+
+                "tax_rate":
+                    self._secef_number(
+                        tax.amount
+                    ),
+
+                "amount":
+                    self._secef_amount(
+                        amount
+                    ),
+
+                "unit_price":
+                    self._secef_amount(
+                        unit_price
+                    ),
+
+                "quantity":
+                    self._secef_quantity(
+                        line.quantity
+                    ),
+                "is_downpayment": bool(
+                    line.is_downpayment
+                ),
+            }
+
+            if price_change:
+                item.update(
+                    price_change
+                )
+
+            items.append(
+                item
+            )
+
+            item_local_metadata.append({
+                "item_index":
+                    len(
+                        item_local_metadata
+                    ),
+
+                "move_line_id":
+                    line.id,
+
+                "product_id":
+                    (
+                        product.id
+                        if product
+                        else False
+                    ),
+            })
+
+        if not items:
+            raise UserError(
+                _(
+                    "Le solde fiscal de la facture est nul. "
+                    "Aucun article positif ne peut etre "
+                    "transmis au SECeF."
+                )
+            )
+
+        # -----------------------------------------------------
+        # Mode HT/TTC
+        # -----------------------------------------------------
+
+        if len(price_include_values) != 1:
+            raise UserError(
+                _(
+                    "La facture mélange des prix "
+                    "TTC et HT. Ce cas SECeF "
+                    "n'est pas encore pris en charge."
+                )
+            )
+
+        price_mode = (
+            "TTC"
+            if True in price_include_values
+            else "HT"
+        )
+
+        # -----------------------------------------------------
+        # Client
+        # -----------------------------------------------------
+
+        address = " ".join(
+            value.strip()
+            for value in [
+                partner.street,
+                partner.street2,
+                partner.city,
+            ]
+            if (
+                isinstance(
+                    value,
+                    str,
+                )
+                and value.strip()
+            )
+        )
+
+        mobile = (
+            partner["mobile"]
+            if "mobile" in partner._fields
+            else False
+        )
+
+        # -----------------------------------------------------
+        # Opérateur
+        # -----------------------------------------------------
+
+        operator_name = (
+            user.name
+            or user.login
+            or ""
+        ).strip()
+
+        if not operator_name:
+            raise UserError(
+                _(
+                    "L'utilisateur courant "
+                    "ne possède pas de nom "
+                    "utilisable pour SECeF."
+                )
+            )
+
+        # C0h limite operator_name
+        # à 32 caractères.
+        operator_name = (
+            operator_name[:32]
+        )
+
+        operator_id = str(
+            user.id
+        )
+
+        if len(operator_id) > 16:
+            raise UserError(
+                _(
+                    "L'identifiant de l'opérateur "
+                    "SECeF dépasse 16 caractères."
+                )
+            )
+
+        comments = self._get_secef_comments_payload()
+        extra_info = self._get_secef_extra_info_payload()
+
+        for field_id, content in comments.items():
+            if len(content) > 255:
+                raise UserError(
+                    _(
+                        "Le commentaire SECeF %s dépasse "
+                        "255 caractères."
+                    )
+                    % field_id
+                )
+
+        for field_id, content in extra_info.items():
+            if len(content) > 255:
+                raise UserError(
+                    _(
+                        "L'information SECeF %s dépasse "
+                        "255 caractères."
+                    )
+                    % field_id
+                )
+        # -----------------------------------------------------
+        # Payload final
+        # -----------------------------------------------------
+
+        payload = {
+            "customer": {
+                "customer_type": partner.secef_customer_type,
+                "ifu": partner.vat or "",
+                "name": partner.name or "",
+                "address": address,
+                "phone": partner.phone or mobile or "",
+                "email": partner.email or "",
+                "rccm": partner.company_registry or "",
+            },
+            "invoice": {
+                "operator_id": operator_id,
+                "operator_name": operator_name,
+                "ifu": company_ifu,
+                "invoice_type": invoice_type,
+                "price_mode": price_mode,
+                "sfe_id": company.secef_sfe_id,
+                "invoice_number": invoice_number,
+            },
+            "items": items,
+            "payments": None,
+            "expected_total": self._secef_amount(
+                self._secef_expected_total_exact()
+            ),
+        }
+
+        if comments:
+            payload["comments"] = comments
+
+        if extra_info:
+            payload["extra_info"] = extra_info
+
+        if is_refund:
+            payload["invoice"]["refund_reason"] = refund_reason
+            if reference_number:
+                payload["invoice"]["reference_number"] = reference_number
+
+
+        # -----------------------------------------------------
+        # PSVB
+        # -----------------------------------------------------
+
+        if (
+            is_refund
+            and self.secef_psvb_group
+        ):
+            raise UserError(
+                _(
+                    "Le PSVB ne peut pas être "
+                    "appliqué à une facture "
+                    "d'avoir SECeF."
+                )
+            )
+
+        if (
+            not is_refund
+            and self.secef_psvb_group
+        ):
+            payload["invoice"]["psvb"] = (
+                self.secef_psvb_group
+            )
+
+        if self.env.context.get(
+            "_secef_include_local_item_metadata"
+        ):
+            payload[
+                "_odoo_local_item_metadata"
+            ] = {
+                "schema_version":
+                    1,
+
+                "items":
+                    item_local_metadata,
+            }
+
+        return payload
+    def action_print_secef_duplicate(self):
+        self.ensure_one()
+
+        if self.secef_state != "certified":
+            raise UserError(
+                _(
+                    "Seule une facture certifiée SECeF "
+                    "peut être imprimée en duplicata."
+                )
+            )
+
+        report = self.env.ref(
+            "account.account_invoices"
+        )
+
+        return report.with_context(
+            secef_duplicate=True
+        ).report_action(
+            self
+        )
+    # =========================================================
+    # Transaction locale
+    # =========================================================
+
+    def _get_active_secef_transaction(
+        self,
+    ):
+        """
+        Retourne la transaction fiscale active
+        de la facture.
+        """
+
+        self.ensure_one()
+
+        return (
+            self.secef_transaction_ids
+            .filtered(
+                lambda transaction:
+                    transaction.state
+                    in (
+                        "pending",
+                        "processing",
+                    )
+            )[:1]
+        )
+
+    def _set_secef_delivery_error(
+        self,
+        transaction,
+        message,
+        response_payload=None,
+    ):
+        """
+        Enregistre une erreur réseau ou centrale
+        sans perdre le request_uid.
+
+        Une erreur de transport n'est pas assimilée
+        à un échec fiscal.
+        """
+
+        self.ensure_one()
+
+        values = {
+            "error_message":
+                message,
+
+            "last_sync_at":
+                fields.Datetime.now(),
+        }
+
+        if isinstance(
+            response_payload,
+            dict,
+        ):
+            values[
+                "response_payload"
+            ] = response_payload
+
+        transaction.write(
+            values
+        )
+
+        local_state = (
+            "processing"
+            if transaction.state
+            == "processing"
+            else "pending"
+        )
+
+        self.write({
+            "secef_state":
+                local_state,
+
+            "secef_error_message":
+                message,
+        })
+
+    # =========================================================
+    # Dispatch vers serveur central
+    # =========================================================
+
+    def _dispatch_secef_transaction(
+        self,
+        transaction,
+        *,
+        client=None,
+    ):
+        """
+        Envoie une transaction Outbox au serveur central.
+
+        Le request_uid déjà stocké est toujours réutilisé.
+        """
+
+        self.ensure_one()
+
+        if not transaction:
+            raise UserError(
+                _(
+                    "Transaction SECeF introuvable."
+                )
+            )
+
+        if (
+            transaction.move_id
+            and transaction.move_id
+            != self
+        ):
+            raise UserError(
+                _(
+                    "La transaction SECeF ne correspond "
+                    "pas à cette facture."
+                )
+            )
+
+        if not transaction.request_uid:
+            raise UserError(
+                _(
+                    "La transaction SECeF ne possède "
+                    "pas de request_uid."
+                )
+            )
+
+        if not transaction.agent_uid:
+            raise UserError(
+                _(
+                    "La transaction SECeF ne possède "
+                    "pas d'agent_uid."
+                )
+            )
+
+        if transaction.state != "pending":
+            return False
+
+        if not client:
+            client = (
+                self._get_secef_central_client()
+            )
+
+        try:
+            response = (
+                client.create_certification(
+                    request_uid=(
+                        transaction.request_uid
+                    ),
+                    agent_uid=(
+                        transaction.agent_uid
+                    ),
+                    invoice_number=(
+                        self.name
+                    ),
+                    payload=(
+                        transaction.request_payload
+                    ),
+                    job_type=(
+                        "invoice.certify"
+                    ),
+                )
+            )
+
+        except SecefCentralTransportError as exc:
+            self._set_secef_delivery_error(
+                transaction,
+                str(exc),
+            )
+
+            return False
+
+        except SecefCentralProtocolError as exc:
+            self._set_secef_delivery_error(
+                transaction,
+                str(exc),
+            )
+
+            return False
+
+        except SecefCentralHTTPError as exc:
+            response_payload = (
+                exc.response_payload
+                if isinstance(
+                    exc.response_payload,
+                    dict,
+                )
+                else {}
+            )
+
+            if exc.status_code in {
+                400,
+                401,
+                403,
+                404,
+                422,
+            }:
+                transaction._mark_failed(
+                    str(exc),
+                    response_payload,
+                )
+
+                return False
+
+            self._set_secef_delivery_error(
+                transaction,
+                str(exc),
+                response_payload,
+            )
+
+            return False
+
+        except SecefCentralClientError as exc:
+            self._set_secef_delivery_error(
+                transaction,
+                str(exc),
+            )
+
+            return False
+
+        except Exception as exc:
+            _logger.exception(
+                (
+                    "Erreur inattendue pendant "
+                    "l'envoi SECeF"
+                    " | move_id=%s"
+                    " | request_uid=%s"
+                ),
+                self.id,
+                transaction.request_uid,
+            )
+
+            self._set_secef_delivery_error(
+                transaction,
+                _(
+                    "Erreur inattendue pendant "
+                    "la communication avec "
+                    "le serveur central SECeF : %s"
+                )
+                % str(exc),
+            )
+
+            return False
+
+        # -----------------------------------------------------
+        # Réponse centrale acceptée
+        # -----------------------------------------------------
+
+        try:
+            transaction._record_central_ack(
+                response
+            )
+
+            transaction._apply_central_response(
+                response
+            )
+
+        except Exception as exc:
+            _logger.exception(
+                (
+                    "Réponse centrale SECeF incohérente"
+                    " | move_id=%s"
+                    " | request_uid=%s"
+                ),
+                self.id,
+                transaction.request_uid,
+            )
+
+            self._set_secef_delivery_error(
+                transaction,
+                _(
+                    "La réponse reçue du serveur "
+                    "central doit être vérifiée : %s"
+                )
+                % str(exc),
+                response,
+            )
+
+            return False
+
+        return True
+
+    # =========================================================
+    # Création Outbox
+    # =========================================================
+
+    def action_request_secef_certification(
+        self,
+    ):
+        """
+        Crée durablement la demande de certification locale.
+
+        IMPORTANT :
+        aucun POST HTTP n'est effectué dans cette action.
+
+        Le request_uid est donc enregistré en base avant
+        toute communication avec la plateforme centrale.
+        """
+
+        self.ensure_one()
+
+        if self.secef_state == "certified":
+            raise UserError(
+                _(
+                    "Cette facture est déjà "
+                    "certifiée SECeF."
+                )
+            )
+
+        if self.secef_state == "unknown":
+            raise UserError(
+                _(
+                    "Le résultat de la précédente "
+                    "certification SECeF est "
+                    "indéterminé. Une nouvelle "
+                    "certification est interdite "
+                    "tant que la situation fiscale "
+                    "n'a pas été vérifiée."
+                )
+            )
+
+        active_transaction = (
+            self._get_active_secef_transaction()
+        )
+
+        if active_transaction:
+            raise UserError(
+                _(
+                    "Une demande de certification "
+                    "SECeF est déjà en cours "
+                    "pour cette facture."
+                )
+            )
+
+        # Validation complète avant création
+        # de l'Outbox.
+        prepared_payload = (
+            self
+            .with_context(
+                _secef_include_local_item_metadata=True
+            )
+            ._prepare_secef_payload()
+        )
+
+        local_item_metadata = (
+            prepared_payload.pop(
+                "_odoo_local_item_metadata",
+                None,
+            )
+            or {}
+        )
+
+        payload = prepared_payload
+
+        central_configuration = (
+            self._get_secef_central_configuration()
+        )
+
+        request_uid = str(
+            uuid.uuid4()
+        )
+
+        agent_uid = (
+            central_configuration[
+                "agent_uid"
+            ]
+        )
+
+        self.env[
+            "sunsoft.secef.transaction"
+        ].sudo().create({
+            "move_id":
+                self.id,
+
+            "request_uid":
+                request_uid,
+
+            "agent_uid":
+                agent_uid,
+
+            # Conservé temporairement pour
+            # l'ancien contrôleur.
+            "agent_identifier": (
+                self.company_id
+                .secef_agent_identifier
+                or agent_uid
+            ),
+
+            "request_payload":
+                payload,
+
+            "local_item_metadata":
+                local_item_metadata,
+
+            "state":
+                "pending",
+        })
+
+        self.write({
+            "secef_state":
+                "pending",
+
+            "secef_error_message":
+                False,
+        })
+
+        return {
+            "type":
+                "ir.actions.client",
+
+            "tag":
+                "reload",
+        }
+
+    # =========================================================
+    # Envoi manuel
+    # =========================================================
+
+    def action_retry_secef_dispatch(
+        self,
+    ):
+        """
+        Envoie ou rejoue manuellement l'Outbox.
+
+        Le même request_uid est toujours réutilisé.
+        """
+
+        self.ensure_one()
+
+        transaction = (
+            self._get_active_secef_transaction()
+        )
+
+        if not transaction:
+            raise UserError(
+                _(
+                    "Aucune demande SECeF "
+                    "en attente ne peut être envoyée."
+                )
+            )
+
+        if transaction.state != "pending":
+            raise UserError(
+                _(
+                    "Seule une transaction SECeF "
+                    "en attente peut être envoyée."
+                )
+            )
+
+        if transaction.central_job_uid:
+            raise UserError(
+                _(
+                    "Cette demande SECeF a déjà été "
+                    "acceptée par le serveur central. "
+                    "Utilisez la synchronisation."
+                )
+            )
+
+        client = (
+            self._get_secef_central_client()
+        )
+
+        self._dispatch_secef_transaction(
+            transaction.sudo(),
+            client=client,
+        )
+
+        return {
+            "type":
+                "ir.actions.client",
+
+            "tag":
+                "reload",
+        }
+
+    # =========================================================
+    # Synchronisation centrale
+    # =========================================================
+
+    def _sync_secef_transaction(
+        self,
+        transaction,
+        *,
+        client=None,
+    ):
+        """
+        Synchronise une transaction précise avec
+        le serveur central SECeF.
+        """
+
+        self.ensure_one()
+
+        if not transaction:
+            raise UserError(
+                _(
+                    "La transaction SECeF "
+                    "à synchroniser est introuvable."
+                )
+            )
+
+        if (
+            transaction.move_id
+            and transaction.move_id
+            != self
+        ):
+            raise UserError(
+                _(
+                    "La transaction SECeF "
+                    "ne correspond pas "
+                    "à cette facture."
+                )
+            )
+
+        if transaction.state not in {
+            "pending",
+            "processing",
+        }:
+            return False
+
+        if not transaction.request_uid:
+            raise UserError(
+                _(
+                    "La transaction SECeF ne possède "
+                    "pas de request_uid."
+                )
+            )
+
+        if not transaction.central_job_uid:
+            return False
+
+        if not client:
+            client = (
+                self._get_secef_central_client()
+            )
+
+        try:
+            response = (
+                client.get_certification(
+                    request_uid=(
+                        transaction.request_uid
+                    )
+                )
+            )
+
+        except SecefCentralClientError as exc:
+            self._set_secef_delivery_error(
+                transaction.sudo(),
+                str(exc),
+            )
+
+            return False
+
+        except Exception as exc:
+            _logger.exception(
+                (
+                    "Erreur de synchronisation SECeF"
+                    " | move_id=%s"
+                    " | transaction_id=%s"
+                    " | request_uid=%s"
+                ),
+                self.id,
+                transaction.id,
+                transaction.request_uid,
+            )
+
+            self._set_secef_delivery_error(
+                transaction.sudo(),
+                _(
+                    "Impossible de synchroniser "
+                    "la certification SECeF : %s"
+                )
+                % str(exc),
+            )
+
+            return False
+
+        try:
+            transaction.sudo()._record_central_ack(
+                response
+            )
+
+            transaction.sudo()._apply_central_response(
+                response
+            )
+
+        except Exception as exc:
+            _logger.exception(
+                (
+                    "Réponse de synchronisation "
+                    "SECeF incohérente"
+                    " | move_id=%s"
+                    " | transaction_id=%s"
+                    " | request_uid=%s"
+                ),
+                self.id,
+                transaction.id,
+                transaction.request_uid,
+            )
+
+            self._set_secef_delivery_error(
+                transaction.sudo(),
+                _(
+                    "La réponse de synchronisation "
+                    "SECeF doit être vérifiée : %s"
+                )
+                % str(exc),
+                response,
+            )
+
+            return False
+
+        return True
+
+    def action_sync_secef_certification(
+        self,
+    ):
+        """
+        Synchronise manuellement la transaction
+        SECeF active.
+        """
+
+        self.ensure_one()
+
+        transaction = (
+            self._get_active_secef_transaction()
+        )
+
+        if not transaction:
+            raise UserError(
+                _(
+                    "Aucune transaction SECeF "
+                    "active à synchroniser."
+                )
+            )
+
+        if not transaction.central_job_uid:
+            raise UserError(
+                _(
+                    "Cette demande SECeF n'a pas "
+                    "encore été confirmée par "
+                    "le serveur central. "
+                    "Elle doit d'abord être envoyée."
+                )
+            )
+
+        self._sync_secef_transaction(
+            transaction.sudo()
+        )
+
+        return {
+            "type":
+                "ir.actions.client",
+
+            "tag":
+                "reload",
+        }
+
+    # =========================================================
+    # Verrouillage fiscal
+    # =========================================================
+
+    def _check_secef_certified_lock(self):
+        """Empêche l'altération d'une facture ou d'un avoir déjà certifié."""
+        certified_moves = self.filtered(
+            lambda move:
+            move.move_type in ("out_invoice", "out_refund")
+            and move.secef_state == "certified"
+        )
+        if certified_moves:
+            raise UserError(
+                _("Ce document est déjà certifié SECeF. Les données fiscales certifiées ne peuvent plus être modifiées.")
+            )
+    
+    def write(
+        self,
+        vals,
+    ):
+        protected_fields = {
+            "name",
+            "partner_id",
+            "company_id",
+            "journal_id",
+            "move_type",
+            "invoice_date",
+            "invoice_date_due",
+            "invoice_payment_term_id",
+            "currency_id",
+            "fiscal_position_id",
+            "invoice_line_ids",
+            "secef_refund_reason",
+            "secef_reference_number",
+            "secef_sale_type",
+            "secef_psvb_group",
+
+            "secef_comment_a_label",
+            "secef_comment_a",
+            "secef_comment_b_label",
+            "secef_comment_b",
+            "secef_comment_c_label",
+            "secef_comment_c",
+            "secef_comment_d_label",
+            "secef_comment_d",
+            "secef_comment_e_label",
+            "secef_comment_e",
+            "secef_comment_f_label",
+            "secef_comment_f",
+            "secef_comment_g_label",
+            "secef_comment_g",
+            "secef_comment_h_label",
+            "secef_comment_h",
+
+            "reversed_entry_id",
+        }
+
+        if protected_fields.intersection(
+            vals
+        ):
+            self._check_secef_certified_lock()
+
+        return super().write(
+            vals
+        )
+
+    def button_draft(
+        self,
+    ):
+        self._check_secef_certified_lock()
+
+        return super().button_draft()
+
+    def button_cancel(
+        self,
+    ):
+        self._check_secef_certified_lock()
+
+        return super().button_cancel()
+
+    def unlink(
+        self,
+    ):
+        self._check_secef_certified_lock()
+
+        return super().unlink()
+
+    # =========================================================
+    # Utilitaires
+    # =========================================================
+
+    @staticmethod
+    def _secef_number(
+        value,
+    ):
+        """
+        Convertit proprement une valeur numerique Odoo
+        en representation decimale destinee au MCF,
+        sans precision fixe.
+        """
+
+        decimal_value = Decimal(
+            str(value)
+        )
+
+        text = format(
+            decimal_value.normalize(),
+            "f",
+        )
+
+        return (
+            text
+            if text != "-0"
+            else "0"
+        )
+
+    @staticmethod
+    def _secef_fixed_decimal(
+        value,
+        places,
+    ):
+        """
+        Serialise une valeur numerique SECeF
+        avec une precision fixe et un arrondi
+        decimal ROUND_HALF_UP.
+        """
+
+        decimal_value = Decimal(
+            str(value)
+        )
+
+        quantum = Decimal("1").scaleb(
+            -places
+        )
+
+        rounded = decimal_value.quantize(
+            quantum,
+            rounding=ROUND_HALF_UP,
+        )
+
+        if rounded == 0:
+            rounded = abs(rounded)
+
+        return format(
+            rounded,
+            f".{places}f",
+        )
+
+    def _secef_expected_total_exact(
+        self,
+    ):
+        """
+        Retourne le total fiscal SECeF exact à 2 décimales.
+
+        Important :
+        ce calcul ne doit pas passer par un fields.Monetary,
+        car la devise XOF utilise un arrondi à l'unité dans Odoo.
+        """
+        self.ensure_one()
+
+        rates = {
+            "A": Decimal("2"),
+            "B": Decimal("1"),
+            "C": Decimal("0.2"),
+            "D": Decimal("0"),
+        }
+
+        total_ttc = Decimal(
+            str(
+                self.amount_total
+                or 0
+            )
+        )
+
+        rate = (
+            rates.get(
+                self.secef_psvb_group,
+                Decimal("0"),
+            )
+            if (
+                self.move_type == "out_invoice"
+                and self.secef_psvb_group
+            )
+            else Decimal("0")
+        )
+
+        psvb_amount = (
+            total_ttc
+            * rate
+            / Decimal("100")
+        ).quantize(
+            Decimal("0.01"),
+            rounding=ROUND_HALF_UP,
+        )
+
+        return (
+            total_ttc
+            + psvb_amount
+        ).quantize(
+            Decimal("0.01"),
+            rounding=ROUND_HALF_UP,
+        )
+
+    def _secef_amount(
+        self,
+        value,
+    ):
+        """
+        Prix et montants SECeF :
+        exactement 2 decimales.
+        """
+
+        return self._secef_fixed_decimal(
+            value,
+            2,
+        )
+
+    def _secef_quantity(
+        self,
+        value,
+    ):
+        """
+        Quantites SECeF :
+        exactement 3 decimales.
+        """
+
+        return self._secef_fixed_decimal(
+            value,
+            3,
+        )
+
+    def _get_secef_tax_summary(self):
+        self.ensure_one()
+        summary = {}
+        for line in self.invoice_line_ids:
+            if line.display_type in ("line_section", "line_note"):
+                continue
+            taxes = line.tax_ids.filtered(lambda tax: tax.secef_tax_group)
+            if not taxes:
+                continue
+            tax = taxes[:1]
+            group = tax.secef_tax_group
+            rate = tax.amount
+            key = (group, rate)
+            if key not in summary:
+                summary[key] = {"group": group, "rate": rate, "base": 0.0, "tax": 0.0, "total": 0.0}
+            summary[key]["base"] += line.price_subtotal
+            summary[key]["tax"] += line.price_total - line.price_subtotal
+            summary[key]["total"] += line.price_total
+
+        currency = self.currency_id
+        result = []
+        for values in summary.values():
+            values["base"] = currency.round(values["base"])
+            values["tax"] = currency.round(values["tax"])
+            values["total"] = currency.round(values["total"])
+            values["is_exempt"] = values["group"] == "A" and currency.is_zero(values["tax"])
+            result.append(values)
+
+        return sorted(result, key=lambda values: (values["group"], values["rate"]))
